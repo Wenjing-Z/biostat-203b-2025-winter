@@ -58,17 +58,19 @@ Refer to the documentation <https://physionet.org/content/mimiciv/3.1/> for deta
 
 2. Display the contents in the folders `hosp` and `icu` using Bash command `ls -l`. Why are these data files distributed as `.csv.gz` files instead of `.csv` (comma separated values) files? Read the page <https://mimic.mit.edu/docs/iv/> to understand what's in each folder.
 
-**Solution**
+**Solution:**
 Display the contents
 ```{bash}
 ls -l ~/mimic/hosp
 ls -l ~/mimic/icu
 ```
 3. Briefly describe what Bash commands `zcat`, `zless`, `zmore`, and `zgrep` do.
+
 **Solution**
+
 - `zcat` is used to display the contents of a compressed file. It is equivalent to `cat` command for uncompressed files.
 ```{bash}
-zcat ~/mimic/icu/icustays.csv.gz | head
+zcat < ~/mimic/icu/icustays.csv.gz | head
 ```
 - `zless` is used to display the contents of a compressed file one screen at a time. It is equivalent to `less` command for uncompressed files.
 ```{bash}
@@ -83,6 +85,8 @@ zmore ~/mimic/hosp/d_hcpcs.csv.gz | head
 zgrep -c "99291" ~/mimic/hosp/services.csv.gz
 ```
 4. (Looping in Bash) What's the output of the following bash script?
+
+**Solution**
 ```{bash}
 #| eval: false
 for datafile in ~/mimic/hosp/{a,l,pa}*.gz
@@ -90,15 +94,97 @@ do
   ls -l $datafile
 done
 ```
+The output of this bash is displaying all the file names statring with `a`, `l`, and `pa` in the `hosp` folder.
+
 Display the number of lines in each data file using a similar loop. (Hint: combine linux commands `zcat <` and `wc -l`.)
 
+**Solution:**
+```{bash}
+for datafile in ~/mimic/hosp/{a,l,pa}*.gz
+do
+  zcat< $datafile | wc -l 
+done
+```
+
 5. Display the first few lines of `admissions.csv.gz`. How many rows are in this data file, excluding the header line? Each `hadm_id` identifies a hospitalization. How many hospitalizations are in this data file? How many unique patients (identified by `subject_id`) are in this data file? Do they match the number of patients listed in the `patients.csv.gz` file? (Hint: combine Linux commands `zcat <`, `head`/`tail`, `awk`, `sort`, `uniq`, `wc`, and so on.)
+```{bash}
+# display the first few lines
+zcat < ~/mimic/hosp/admissions.csv.gz | head 
+```
+```{bash}
+# count the number of rows (excluding the header line)
+zcat < ~/mimic/hosp/admissions.csv.gz |tail -n +2 | wc -l 
+```
+```{bash}
+# count the number of unique hospitalizations
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $2}' | sort | uniq | wc -l
+```
+```{bash}
+# count the number of unique patients
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort | uniq | wc -l
+```
+```{bash}
+# display the first few lines of patients.csv.gz
+zcat < ~/mimic/hosp/patients.csv.gz | head 
+# count the number of unique patients in patients.csv.gz
+zcat < ~/mimic/hosp/patients.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort | uniq | wc -l
+```
+Therefore the number of unique patients in `admissions.csv.gz` and `patients.csv.gz` are not the same.
 
 6. What are the possible values taken by each of the variable `admission_type`, `admission_location`, `insurance`, and `ethnicity`? Also report the count for each unique value of these variables in decreasing order. (Hint: combine Linux commands `zcat`, `head`/`tail`, `awk`, `uniq -c`, `wc`, `sort`, and so on; skip the header line.)
 
+**Solution:**
+```{bash}
+# display the first few lines of admissions.csv.gz
+zcat < ~/mimic/hosp/admissions.csv.gz | head
+```
+```{bash}
+# count the number of unique values for admission_type
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $6}' | sort | uniq -c | sort -nr
+```
+```{bash}
+# count the number of unique values for admission_location
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $8}' | sort | uniq -c | sort -nr
+```
+```{bash}
+# count the number of unique values for insurance
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $10}' | sort | uniq -c | sort -nr
+```
+```{bash}
+# count the number of unique values
+zcat < ~/mimic/hosp/admissions.csv.gz | tail -n +2 | awk -F, '{print $13}' | sort | uniq -c | sort -nr
+```
+
 7. The `icusays.csv.gz` file contains all the ICU stays during the study period. How many ICU stays, identified by `stay_id`, are in this data file? How many unique patients, identified by `subject_id`, are in this data file?
 
+**Solution:**
+```{bash}
+# display the first few lines
+zcat < ~/mimic/icu/icustays.csv.gz | head 
+# the number of ICU stays
+zcat < ~/mimic/icu/icustays.csv.gz | tail -n +2 | awk -F, '{print $3}' | sort | uniq | wc -l
+# the number of unique patients
+zcat < ~/mimic/icu/icustays.csv.gz | tail -n +2 | awk -F, '{print $1}' | sort | uniq | wc -l
+```
+The number of ICU stays is 61532 and the number of unique patients is 46476 in this data file.
+
 8. _To compress, or not to compress. That's the question._ Let's focus on the big data file `labevents.csv.gz`. Compare compressed gz file size to the uncompressed file size. Compare the run times of `zcat < ~/mimic/labevents.csv.gz | wc -l` versus `wc -l labevents.csv`. Discuss the trade off between storage and speed for big data files. (Hint: `gzip -dk < FILENAME.gz > ./FILENAME`. Remember to delete the large `labevents.csv` file after the exercise.)
+
+**Solution:**
+```{bash}
+# compare compressed and uncompressed file size
+#ls -lh ~/mimic/hosp/labevents.csv.gz
+# Uncompress the file temporarily and check its size
+#gzip -dk < ~/mimic/hosp/labevents.csv.gz > ./labevents.csv
+#ls -lh labevents.csv
+```
+```{bash}
+# compare run times
+#time zcat < ~/mimic/labevents.csv.gz | wc -l
+#time wc -l ~/mimic/labevents.csv
+```
+The compressed file size is smaller than the uncompressed file size. The run time of `zcat < ~/mimic/labevents.csv.gz | wc -l` is faster than `wc -l ~/mimic/labevents.csv`. The trade off between storage and speed for big data files is that compressed files save storage space but take longer time to read and write, while uncompressed files take more storage space but are faster to read and write.
+
 
 ## Q4. Who's popular in Price and Prejudice
 
