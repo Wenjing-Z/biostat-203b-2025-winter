@@ -259,7 +259,7 @@ cal 2025
 ```{bash}
 cal 9 1752
 ```
-Unusual thing: The days from 3rd to 13th on Sepetember of 1752 in the calnedar are missing.
+**Unusual thing: **The days from 3rd to 13th on Sepetember of 1752 in the calnedar are missing.
 
 ```{bash}
 date
