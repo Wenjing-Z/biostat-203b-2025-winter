@@ -35,7 +35,7 @@ sessionInfo()
 
 5. After this course, you can make this repository public and use it to demonstrate your skill sets on job market.
 
-**Solution** Done.
+**Solution** Done.I've already created a repository named `biostat-203b-2025-winter` and here is the [link](https://github.com/Wenjing-Z/biostat-203b-2025-winter.git). 
 
 ## Q2. Data ethics training
 
