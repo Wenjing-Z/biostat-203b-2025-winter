@@ -3,16 +3,17 @@ title: "Biostat 203B Homework 1"
 subtitle: Due Jan 24, 2025 @ 11:59PM
 author: Wenjing Zhou and 806542441
 format:
+  # pdf: default
   html:
-    theme: cosmo
-    embed-resources: true
-    number-sections: false
-    toc: true
-    toc-depth: 4
-    toc-location: left
-    code-fold: false
-    link-external-icon: true
-    link-external-newwindow: true
+  theme: cosmo
+  embed-resources: true
+  number-sections: false
+  toc: true
+  toc-depth: 4
+  toc-location: left
+  code-fold: false
+  link-external-icon: true
+  link-external-newwindow: true
 ---
 
 Display machine information for reproducibility:
@@ -42,6 +43,8 @@ sessionInfo()
 This exercise (and later in this course) uses the [MIMIC-IV data v3.1](https://physionet.org/content/mimiciv/3.1/), a freely accessible critical care database developed by the MIT Lab for Computational Physiology. Follow the instructions at <https://mimic.mit.edu/docs/gettingstarted/> to (1) complete the CITI `Data or Specimens Only Research` course and (2) obtain the PhysioNet credential for using the MIMIC-IV data. Display the verification links to your completion report and completion certificate here. **You must complete Q2 before working on the remaining questions.** (Hint: The CITI training takes a few hours and the PhysioNet credentialing takes a couple days; do not leave it to the last minute.)
 
 **Solution** Done. Here is the screenshot of mimic data access approval.
+
+
 ![](mimic_data_access.png)
 
 ## Q3. Linux Shell Commands
@@ -300,16 +303,16 @@ time sleep 5
 ```{bash}
 history | tail
 ```
- 1  Sys.getenv()  echo 15D5E999 && echo $HISTCONTROL && /usr/bin/env && echo 70D3A016
-    2  ps aux | grep R
-    3  kill -9 <PID>
-    4  history | tail
-    5  tlmgr install hyperref
-    6  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    7  brew install --cask mactex
-    8  991230
-    9  brew install wget
+ 9  brew install wget
    10  history | tail
+   11  git branch
+   12  git check out main
+   13  git checkout main
+   14  ls
+   15  git branch
+   16  git checkout main
+   17  git merge develop
+   18  history | tail
    
 ## Q6. Book
 
@@ -323,4 +326,5 @@ For grading purpose, include a screenshot of Section 4.1.5 of the book here.
 
 **Solution:** 
 Here is the screenshot of Section 4.1.5 of the book.
+
 ![](Rep-Res-Book.png)
