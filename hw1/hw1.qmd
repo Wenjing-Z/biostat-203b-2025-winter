@@ -180,8 +180,8 @@ ls -lh labevents.csv
 ```
 ```{bash}
 # compare run times
-time zcat < ~/mimic/labevents.csv.gz | wc -l
-time wc -l ~/mimic/labevents.csv
+time zcat < ~/mimic/hosp/labevents.csv.gz | wc -l
+time wc -l ./labevents.csv
 ```
 The compressed file size is smaller than the uncompressed file size. The run time of `zcat < ~/mimic/labevents.csv.gz | wc -l` is faster than `wc -l ~/mimic/labevents.csv`. The trade off between storage and speed for big data files is that compressed files save storage space but take longer time to read and write, while uncompressed files take more storage space but are faster to read and write.
 
