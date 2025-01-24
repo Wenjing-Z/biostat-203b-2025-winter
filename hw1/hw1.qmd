@@ -65,7 +65,23 @@ ls -l ~/mimic/hosp
 ls -l ~/mimic/icu
 ```
 3. Briefly describe what Bash commands `zcat`, `zless`, `zmore`, and `zgrep` do.
-
+**Solution**
+- `zcat` is used to display the contents of a compressed file. It is equivalent to `cat` command for uncompressed files.
+```{bash}
+zcat ~/mimic/icu/icustays.csv.gz | head
+```
+- `zless` is used to display the contents of a compressed file one screen at a time. It is equivalent to `less` command for uncompressed files.
+```{bash}
+zless ~/mimic/hosp/d_hcpcs.csv.gz | head
+```
+- `zmore` is used to display the contents of a compressed file one screen at a time. It is equivalent to `more` command for uncompressed files.
+```{bash}
+zmore ~/mimic/hosp/d_hcpcs.csv.gz | head
+```
+- `zgrep` is used to search the contents of a compressed file using regular expressions. It is equivalent to `grep` command for uncompressed files.
+```{bash}
+zgrep -c "99291" ~/mimic/hosp/services.csv.gz
+```
 4. (Looping in Bash) What's the output of the following bash script?
 ```{bash}
 #| eval: false
@@ -180,7 +196,7 @@ echo {con,pre}{sent,fer}{s,ed}
 time sleep 5
 ```
 ```{bash}
-history|tail
+history | tail
 ```
 
 ## Q6. Book
