@@ -197,13 +197,16 @@ Explain what `wget -nc` does. Do **not** put this text file `pg42671.txt` in Git
 
 **Solution:**
 `wget -nc` is used to download the file only if it does not exist in the current directory.
+
 ```{bash}
 #| eval: false
 wget -nc http://www.gutenberg.org/cache/epub/42671/pg42671.txt
+
 for char in Elizabeth Jane Lydia Darcy
 do
   echo $char:
   # some bash commands here
+   grep -oi "$char" pg42671.txt | wc -l
 done
 ```
 
@@ -218,6 +221,9 @@ and
 echo 'hello, world' >> test2.txt
 ```
 
+**Solution:**
+The difference of the two commands is that the first command `echo 'hello, world' > test1.txt` writes the output to a file `test1.txt` and overwrites the file if it already exists, while the second command `echo 'hello, world' >> test2.txt` appends the output to a file `test2.txt` if the file already exists. `test2.txt` will have the content `hello, world` twice if I run the second command twice.
+
 3. Using your favorite text editor (e.g., `vi`), type the following and save the file as `middle.sh`:
 ```{bash eval=FALSE}
 #!/bin/sh
@@ -227,10 +233,17 @@ head -n "$2" "$1" | tail -n "$3"
 ```
 Using `chmod` to make the file executable by the owner, and run
 ```{bash}
+chmod +x middle.sh
+```
+```{bash}
 #| eval: false
 ./middle.sh pg42671.txt 20 5
 ```
 Explain the output. Explain the meaning of `"$1"`, `"$2"`, and `"$3"` in this shell script. Why do we need the first line of the shell script?
+
+**Solution: **
+The meaning of `"$1"`, `"$2"`, and `"$3"` in this shell script is the first, second, and third argument passed to the script, respectively. The first line of the shell script `#!/bin/sh` is called a shebang line, which tells the system which interpreter to use to execute the script. In this case, it tells the system to use the `sh` interpreter to execute the script.
+
 
 ## Q5. More fun with Linux
 
@@ -287,7 +300,17 @@ time sleep 5
 ```{bash}
 history | tail
 ```
-
+ 1  Sys.getenv()  echo 15D5E999 && echo $HISTCONTROL && /usr/bin/env && echo 70D3A016
+    2  ps aux | grep R
+    3  kill -9 <PID>
+    4  history | tail
+    5  tlmgr install hyperref
+    6  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    7  brew install --cask mactex
+    8  991230
+    9  brew install wget
+   10  history | tail
+   
 ## Q6. Book
 
 1. Git clone the repository <https://github.com/christophergandrud/Rep-Res-Book> for the book _Reproducible Research with R and RStudio_ to your local machine. Do **not** put this repository within your homework repository `biostat-203b-2025-winter`.
