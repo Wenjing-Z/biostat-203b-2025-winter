@@ -1,7 +1,7 @@
 ---
 title: "Biostat 203B Homework 2"
 subtitle: Due Feb 7, 2025 @ 11:59PM
-author: "Your Name and UID"
+author: "Wenjing Zhou and 806542441"
 format:
   html:
     theme: cosmo
@@ -56,9 +56,86 @@ There are quite a few utilities in R for reading plain text data files. Let us t
 
 Which function is fastest? Is there difference in the (default) parsed data types? How much memory does each resultant dataframe or tibble use? (Hint: `system.time` measures run times; `pryr::object_size` measures memory usage; all these readers can take gz file as input without explicit decompression.) 
 
+```{r}
+setwd("~/mimic/hosp/")
+
+#speed
+# Using read.csv (base R)
+system.time({
+  admissions_base <- read.csv(gzfile("admissions.csv.gz"))
+})
+
+# Using read_csv (readr in the tidyverse)
+library(readr)
+system.time({
+  admissions_tidy <- read_csv("admissions.csv.gz")
+})
+
+# Using fread (data.table)
+library(data.table)
+system.time({
+  admissions_dt <- fread("admissions.csv.gz")
+})
+
+object_size(admissions_base)   
+object_size(admissions_tidy)  
+object_size(admissions_dt)     
+
+
+```
+
+**Solution: **
+Function `fread` is the fastest way to read the data. The data types are different in these three functions. `read.cvs` returns a data frame. `read_csv` returns a tibble. `fread` returns a data table.
+The memory usage of `fread` is the smallest, while `read.csv` takes the most memory.
+
+
 ### Q1.2 User-supplied data types
 
 Re-ingest `admissions.csv.gz` by indicating appropriate column data types in `read_csv`. Does the run time change? How much memory does the result tibble use? (Hint: `col_types` argument in `read_csv`.)
+
+```{r}
+con <- gzfile("~/mimic/hosp/admissions.csv.gz", "rt")
+data <- read.csv(con)
+close(con) 
+
+head(data)
+```
+
+```{r}
+setwd("~/mimic/hosp/")
+
+col_spec <- cols(
+  subject_id = col_integer(),
+  hadm_id = col_integer(),
+  admittime = col_datetime(format = "%Y-%m-%d %H:%M:%S"),
+  dischtime = col_datetime(format = "%Y-%m-%d %H:%M:%S"),
+  deathtime = col_datetime(format = "%Y-%m-%d %H:%M:%S"),
+  admission_type = col_character(),
+  admit_provider_id = col_character(),
+  admission_location = col_character(),
+  discharge_location = col_character(),
+  insurance = col_character(),
+  language = col_character(),  
+  marital_status = col_character(),
+  race = col_character(),
+  edregtime = col_datetime(format = "%Y-%m-%d %H:%M:%S"),
+  edouttime = col_datetime(format = "%Y-%m-%d %H:%M:%S"),
+  hospital_expire_flag = col_integer(),
+)
+
+
+time_spec <- system.time({
+  admissions_spec <- read_csv("admissions.csv.gz", col_types = col_spec)
+})
+print(time_spec)
+
+
+memory_usage <- pryr::object_size(admissions_spec)
+print(memory_usage)
+```
+**Solution: **
+The run time is similar to the previous one. The memory usage is smaller than the previous one which is 63.47 MB.
+
 
 ## Q2. Ingest big data files
 
