@@ -251,6 +251,10 @@ Write a few sentences to explain what is Apache Arrow. Imagine you want to expla
 ```{bash}
 #| eval: false
 gzip -dk < ~/mimic/hosp/labevents.csv.gz > ./labevents.csv
+```
+
+```{r}
+#| eval: true
 start_time <- Sys.time()
 
 ds <- open_dataset("labevents.csv", format = "csv")
@@ -273,6 +277,10 @@ cat("Number of rows (excluding header):", nrow(result), "\n")
 # Display the first 10 rows of the result tibble
 print(head(result, 10))
 ```
+
+**Solution: **
+Apache Arrow is a cross-language development platform for in-memory data. It specifies a standardized language-independent columnar memory format for flat and hierarchical data, organized for efficient analytic operations on modern hardware like CPUs and GPUs. Arrow also provides libraries for many programming languages to manipulate this data format, enabling zero-copy reads for lightning-fast data access without serialization overhead.
+Think of it as a way to store and move my data around without needing to copy or reformat it each time—saving my time and making my computer work smarter, not harder.
 
 
 ### Q2.5 Compress `labevents.csv` to Parquet format and ingest/select/filter
