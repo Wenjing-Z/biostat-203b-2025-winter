@@ -246,7 +246,6 @@ Our second strategy is to use [Apache Arrow](https://arrow.apache.org/) for larg
 
 Then use [`arrow::open_dataset`](https://arrow.apache.org/docs/r/reference/open_dataset.html) to ingest `labevents.csv`, select columns, and filter `itemid` as in Q2.3. How long does the ingest+select+filter process take? Display the number of rows and the first 10 rows of the result tibble, and make sure they match those in Q2.3. (Hint: use `dplyr` verbs for selecting columns and filtering rows.)
 
-Write a few sentences to explain what is Apache Arrow. Imagine you want to explain it to a layman in an elevator. 
 
 ```{bash}
 #| eval: false
@@ -277,6 +276,7 @@ cat("Number of rows (excluding header):", nrow(result), "\n")
 # Display the first 10 rows of the result tibble
 print(head(result, 10))
 ```
+Write a few sentences to explain what is Apache Arrow. Imagine you want to explain it to a layman in an elevator. 
 
 **Solution: **
 Apache Arrow is a cross-language development platform for in-memory data. It specifies a standardized language-independent columnar memory format for flat and hierarchical data, organized for efficient analytic operations on modern hardware like CPUs and GPUs. Arrow also provides libraries for many programming languages to manipulate this data format, enabling zero-copy reads for lightning-fast data access without serialization overhead.
@@ -290,8 +290,6 @@ Think of it as a way to store and move my data around without needing to copy or
 </p>
 
 Re-write the csv file `labevents.csv` in the binary Parquet format (Hint: [`arrow::write_dataset`](https://arrow.apache.org/docs/r/reference/write_dataset.html).) How large is the Parquet file(s)? How long does the ingest+select+filter process of the Parquet file(s) take? Display the number of rows and the first 10 rows of the result tibble and make sure they match those in Q2.3. (Hint: use `dplyr` verbs for selecting columns and filtering rows.)
-
-Write a few sentences to explain what is the Parquet format. Imagine you want to explain it to a layman in an elevator.
 
 
 ```{r}
@@ -321,6 +319,8 @@ cat("Number of rows (excluding header):", nrow(result_parquet), "\n")
 print(head(result_parquet, 10))
 
 ```
+Write a few sentences to explain what is the Parquet format. Imagine you want to explain it to a layman in an elevator.
+
 **Solution: **
 Parquet format is a columnar storage file format optimized for use with big data processing frameworks. It is designed to bring efficiency compared to row-based files like CSV, especially for complex nested data structures. Parquet files are highly efficient in terms of both storage and processing speed, making them ideal for large-scale data analytics tasks. They achieve this efficiency through techniques like columnar storage, compression, and encoding schemes.
 
