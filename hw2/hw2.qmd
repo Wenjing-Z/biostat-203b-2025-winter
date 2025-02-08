@@ -293,15 +293,6 @@ Re-write the csv file `labevents.csv` in the binary Parquet format (Hint: [`arro
 
 Write a few sentences to explain what is the Parquet format. Imagine you want to explain it to a layman in an elevator.
 
-### Q2.6 DuckDB
-
-<p align="center">
-  <img src="./duckdb_logo.png" width="20%">
-</p>
-
-Ingest the Parquet file, convert it to a DuckDB table by [`arrow::to_duckdb`](https://arrow.apache.org/docs/r/reference/to_duckdb.html), select columns, and filter rows as in Q2.5. How long does the ingest+convert+select+filter process take? Display the number of rows and the first 10 rows of the result tibble and make sure they match those in Q2.3. (Hint: use `dplyr` verbs for selecting columns and filtering rows.)
-
-Write a few sentences to explain what is DuckDB. Imagine you want to explain it to a layman in an elevator.
 
 ```{r}
 #| eval: false
@@ -330,6 +321,20 @@ cat("Number of rows (excluding header):", nrow(result_parquet), "\n")
 print(head(result_parquet, 10))
 
 ```
+**Solution: **
+Parquet format is a columnar storage file format optimized for use with big data processing frameworks. It is designed to bring efficiency compared to row-based files like CSV, especially for complex nested data structures. Parquet files are highly efficient in terms of both storage and processing speed, making them ideal for large-scale data analytics tasks. They achieve this efficiency through techniques like columnar storage, compression, and encoding schemes.
+
+
+### Q2.6 DuckDB
+
+<p align="center">
+  <img src="./duckdb_logo.png" width="20%">
+</p>
+
+Ingest the Parquet file, convert it to a DuckDB table by [`arrow::to_duckdb`](https://arrow.apache.org/docs/r/reference/to_duckdb.html), select columns, and filter rows as in Q2.5. How long does the ingest+convert+select+filter process take? Display the number of rows and the first 10 rows of the result tibble and make sure they match those in Q2.3. (Hint: use `dplyr` verbs for selecting columns and filtering rows.)
+
+Write a few sentences to explain what is DuckDB. Imagine you want to explain it to a layman in an elevator.
+
 
 **Solution: **
 DuckDB is an in-process SQL database designed specifically for fast analytical queries. In practical terms, it's like having a high-speed, mini data warehouse on your laptop that lets you run complex queries without setting up a separate server. This makes it perfect for data scientists and analysts who need to explore and analyze huge datasets on the fly, all within a familiar SQL interface.
