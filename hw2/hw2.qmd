@@ -306,47 +306,34 @@ Write a few sentences to explain what is DuckDB. Imagine you want to explain it 
 ```{r}
 #| eval: false
 
-
-# ----- Step 1. Convert CSV to Parquet -----
-# Open the CSV dataset
 ds_csv <- open_dataset("labevents.csv", format = "csv")
 
-# Write the dataset in Parquet format into a directory (here "labevents_parquet")
+# Write the dataset in Parquet format into a directory 
 write_dataset(ds_csv, path = "labevents_parquet", format = "parquet")
 
-# You can check the total size of the Parquet file(s) from the command line:
-# (Run this command in your shell; for example, in a terminal you might do:)
-# du -sh labevents_parquet
-#
-# For example, you might see:
-# 1.2G    labevents_parquet
-#
-# (Your actual size may vary.)
-
-# ----- Step 2. Ingest, Select, and Filter the Parquet Data -----
 start_time <- Sys.time()
 
-# Open the Parquet dataset
 ds_parquet <- open_dataset("labevents_parquet", format = "parquet")
 
-# Select the desired columns and filter for specific lab items
 result_parquet <- ds_parquet %>%
   select(subject_id, itemid, charttime, valuenum) %>%
   filter(itemid %in% c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)) %>%
-  collect()  # Brings the filtered data into an R tibble
+  collect()  
 
 end_time <- Sys.time()
 time_taken <- end_time - start_time
 print(time_taken)
 
-# ----- Step 3. Display Results -----
-# Display the number of rows (data rows only)
+
 cat("Number of rows (excluding header):", nrow(result_parquet), "\n")
 
-# Display the first 10 rows of the result tibble
 print(head(result_parquet, 10))
 
 ```
+
+**Solution: **
+DuckDB is an in-process SQL database designed specifically for fast analytical queries. In practical terms, it's like having a high-speed, mini data warehouse on your laptop that lets you run complex queries without setting up a separate server. This makes it perfect for data scientists and analysts who need to explore and analyze huge datasets on the fly, all within a familiar SQL interface.
+
 
 ## Q3. Ingest and filter `chartevents.csv.gz`
 
