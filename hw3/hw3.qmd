@@ -427,9 +427,41 @@ zcat < ~/mimic/hosp/patients.csv.gz | head
 
 Import `patients.csv.gz` (<https://mimic.mit.edu/docs/iv/modules/hosp/patients/>) as a tibble `patients_tble`.
 
+```{r}
+library(readr)
+
+file_path <- "~/mimic//hosp/patients.csv.gz"
+
+patients_tble <- read_csv(file_path)
+
+head(patients_tble)
+```
+
 ### Q4.2 Summary and visualization
 
 Summarize variables `gender` and `anchor_age` by graphics, and explain any patterns you see.
+
+```{r}
+# Summary of gender (distribution of male and female patients)
+ggplot(patients_tble, aes(x = gender)) +
+  geom_bar() +
+  labs(title = "Gender Distribution of Patients",
+       x = "Gender",
+       y = "Count of Patients") +
+  theme_minimal()
+```
+This graph shows the distribution of gender among patients. Female patients are slightly more than male patients.
+
+```{r}
+# Summary of anchor_age (age distribution of patients)
+ggplot(patients_tble, aes(x = anchor_age)) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Age Distribution of Patients (Anchor Age)",
+       x = "Anchor Age",
+       y = "Count of Patients") +
+  theme_minimal()
+```
+This graph shows the distribution of age among patients. Most patients are between 50 and 80 years old, with a peak around 60 years old and 20 years old. There are very few patients over 90 years old.
 
 ## Q5. Lab results
 
