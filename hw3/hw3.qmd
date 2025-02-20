@@ -323,14 +323,16 @@ zcat < ~/mimic/hosp/admissions.csv.gz | head
 
 Import `admissions.csv.gz` as a tibble `admissions_tble`.
 
+**Solution:**
+
 ```{r}
 library(readr)
 
-file_path <- "~/mimic/icu/icustays.csv.gz"
+file_path <- "~/mimic/hosp/admissions.csv.gz"
 
-icustays_tble <- read_csv(file_path)
+admissions_tble <- read_csv(file_path)
 
-head(icustays_tble)
+head(admissions_tble)
 
 ```
 
@@ -346,6 +348,72 @@ Summarize the following information by graphics and explain any patterns you see
 According to the [MIMIC-IV documentation](https://mimic.mit.edu/docs/iv/about/concepts/#date-shifting),
 
 > All dates in the database have been shifted to protect patient confidentiality. Dates will be internally consistent for the same patient, but randomly distributed in the future. Dates of birth which occur in the present time are not true dates of birth. Furthermore, dates of birth which occur before the year 1900 occur if the patient is older than 89. In these cases, the patient’s age at their first admission has been fixed to 300.
+
+**Solution: **
+```{r}
+# 1. Number of admissions per patient
+admissions_per_patient <- admissions_tble %>%
+  group_by(subject_id) %>%
+  summarise(num_admissions = n()) %>%
+  arrange(desc(num_admissions))
+          
+print(admissions_per_patient)
+
+ggplot(admissions_per_patient, aes(x = num_admissions)) +
+  geom_bar() +
+  labs(title = "Number of Admissions per Patient",
+       x = "Number of Admissions",
+       y = "Count of Patients") +
+  theme_minimal()
+```
+
+This graph shows the distribution of the number of admissions per patient. The x-axis has a long tail, indicating that most patients have only a few admissions, but there are a small number of patients with many more admissions.
+
+```{r}
+# 2. Admission hour
+admissions_tble$admission_hour <- as.numeric(format(as.POSIXct(admissions_tble$admittime), "%H"))
+
+# Plot admission hours
+ggplot(admissions_tble, aes(x = admission_hour)) +
+  geom_bar() +
+  labs(title = "Admissions per Hour of the Day",
+       x = "Hour of Admission",
+       y = "Number of Admissions") +
+  theme_minimal()
+```
+
+The graph shows the distribution of admissions by hour of the day. There is a peak in admissions around 8 AM, which is likely due to the start of the day shift in hospitals. There are also peaks around 8 PM and 4 AM, which may be due to emergency admissions.
+```{r}
+# 3. Admission minute
+admissions_tble$admission_minute <- as.numeric(format(as.POSIXct(admissions_tble$admittime), "%M"))
+
+# Plot admission minutes
+ggplot(admissions_tble, aes(x = admission_minute)) +
+  geom_bar() +
+  labs(title = "Admissions per Minute",
+       x = "Minute of Admission",
+       y = "Number of Admissions") +
+  theme_minimal()
+```
+The graph shows the distribution of admissions by minute of the hour. There is a peak at 0 minutes, which is likely due to the rounding of admission times to the nearest hour. There are also peaks at 30 and 15 minutes, which may be due to the rounding of admission times to the nearest half-hour or quarter-hour.
+
+```{r}
+# 4. Length of hospital stay
+admissions_tble$admittime <- as.POSIXct(admissions_tble$admittime)
+admissions_tble$dischtime <- as.POSIXct(admissions_tble$dischtime)
+
+# Calculate the length of hospital stay in days
+admissions_tble$length_of_stay <- as.numeric(difftime(admissions_tble$dischtime, admissions_tble$admittime, units = "days"))
+
+# Plot the length of stay
+ggplot(admissions_tble, aes(x = length_of_stay)) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Length of Hospital Stay",
+       x = "Length of Stay (in days)",
+       y = "Number of Admissions") +
+  theme_minimal()
+```
+The graph shows the distribution of the length of hospital stay. Most patients have a short length of stay, but there are a small number of patients with a very long length of stay. This is likely due to the fact that the MIMIC-IV database contains data from a large number of patients, some of whom may have had very long hospital stays.
 
 ## Q4. `patients` data
 
