@@ -483,6 +483,96 @@ We are interested in the lab measurements of creatinine (50912), potassium (5097
 
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `labevents_pq` folder available at the current working directory `hw3`, for example, by a symbolic link.
 
+```{r}
+# load necessary libraries
+library(dplyr)
+library(readr)
+library(lubridate)
+library(data.table)
+# Load the labevents data
+
+labevents_tble <- fread("labevents.csv")
+# labevents_file_path <- "labevents.csv"
+# labevents_tble <- read_csv(labevents_file_path)
+
+# Load the icustays data
+icustays_file_path <- "~/mimic/icu/icustays.csv.gz"
+icustays_tble <- read_csv(icustays_file_path)
+
+# Load the lab items dictionary to get itemids for the required tests
+labitems_file_path <- "~/mimic/hosp/d_labitems.csv.gz"
+d_labitems_tble <- read_csv(labitems_file_path)
+
+```
+
+
+```{r}
+# Filter the lab items for the required tests
+# Specify the itemids for the required lab tests
+required_itemids <- c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)
+
+# Filter labevents for the required items
+filtered_labevents <- labevents_tble %>%
+  filter(itemid %in% required_itemids)
+```
+
+```{r}
+#| eval: true
+library(arrow)
+
+labevents<- open_dataset("labevents.csv", format = "csv")
+
+result <- ds %>%
+  select(subject_id, itemid, charttime, valuenum) %>%
+  filter(itemid %in% c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 
+                        50931)) %>%
+  collect()  # Pull the filtered data into an R tibble
+
+
+# Display the first 10 rows of the result tibble
+print(head(result, 10))
+
+```
+
+
+
+
+```{r}
+# Merge with icustays_tble to ensure the measurements are only for ICU patients
+merged_data <- filtered_labevents %>%
+  inner_join(icustays_tble, by = "subject_id") %>%
+  filter(storetime <= admittime)  # Ensure the measurement is before or during the ICU stay
+
+```
+
+
+```{r}
+# Get the last available measurement for each ICU stay:
+# Convert storetime to datetime for comparison
+merged_data$storetime <- as.POSIXct(merged_data$storetime)
+
+# Find the last available measurement before the ICU stay for each subject_id and hadm_id
+last_measurements <- merged_data %>%
+  group_by(subject_id, hadm_id, itemid) %>%
+  filter(storetime == max(storetime)) %>%
+  ungroup()
+
+```
+
+
+```{r}
+
+# Reshape the data to get one row per ICU stay with columns for each lab measurement:
+
+# Reshape the data: one row per ICU stay with columns for each lab measurement
+final_data <- last_measurements %>%
+  select(subject_id, hadm_id, itemid, valuenum) %>%
+  spread(key = itemid, value = valuenum)
+
+# View the final reshaped data
+head(final_data)
+
+```
 ## Q6. Vitals from charted events
 
 `chartevents.csv.gz` (<https://mimic.mit.edu/docs/iv/modules/icu/chartevents/>) contains all the charted data available for a patient. During their ICU stay, the primary repository of a patient’s information is their electronic chart. The `itemid` variable indicates a single measurement type in the database. The `value` variable is the value measured for `itemid`. The first 10 lines of `chartevents.csv.gz` are
