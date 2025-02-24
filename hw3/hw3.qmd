@@ -53,7 +53,8 @@ Hint: We need to pull information from data files `patients.csv.gz`, `admissions
 **Solution:**
 
 ```{r}
-# Load required libraries
+#| eval: false
+library(readr)
 library(lubridate)
 library(scales)   # for better date formatting on the x-axis
 
@@ -64,185 +65,197 @@ set.seed(123)
 # 1. Read Data Files
 # ------------------------------
 
-# Files are assumed to be linked appropriately.
-patients         <- read_csv("~/mimic/hosp/patients.csv.gz")
-admissions       <- read_csv("~/mimic/hosp/admissions.csv.gz")
-transfers        <- read_csv("~/mimic/hosp/transfers.csv.gz")
-# For the large labevents file, we use the pre-generated Parquet folder
+admissions_tble <- read_csv("~/mimic/hosp/admissions.csv.gz")
+transfers <- read_csv("~/mimic/hosp/transfers.csv.gz")
+
 labevents        <- read_csv("~/mimic/hosp/labevents.csv.gz", col_select = c("subject_id", "", "charttime", "valuenum") 
+                             
+labevents_tble <- open_dataset("labevents_pq",format = "parquet")
 
 procedures_icd   <- read_csv("~/mimic/hosp/procedures_icd.csv.gz")
 diagnoses_icd    <- read_csv("~/mimic/hosp/diagnoses_icd.csv.gz")
 d_icd_procedures <- read_csv("~/mimic/hosp/d_icd_procedures.csv.gz")
 d_icd_diagnoses  <- read_csv("~/mimic/hosp/d_icd_diagnoses.csv.gz")
 
-# ------------------------------
-# 2. Filter for the Patient of Interest
-# ------------------------------
+```
+
+```{r}
+library(dplyr)
+library(readr)
+library(arrow)
+
+# 设置目标 subject_id
+subject_id_target <- 10001217
+
+
+# patients <- read_csv("patients.csv.gz")
+patients <- read_csv("~/mimic/hosp/patients.csv.gz")
+pt_info <- patients %>%
+  select(subject_id, gender, anchor_age) %>%
+  filter(subject_id == subject_id_target)
+  
+# 查看基本信息
+print(pt_info)
 ```
 ```{r}
-subject_id <- 10063848
+admissions <- read_csv("~/mimic/hosp/admissions.csv.gz", 
+                       col_types = cols(
+                         admittime = col_datetime(),
+                         dischtime = col_datetime()
+                       ))
+pt_adm <- admissions %>%
+  filter(subject_id == subject_id_target) %>%
+  select(subject_id, hadm_id, race) %>%
+  distinct(subject_id, .keep_all = TRUE) #keep one record
+  
+print(pt_adm)
+```
 
-# Patient demographics (assume patients has at least subject_id, dob, and gender)
-patient <- patients %>% filter(subject_id == !!subject_id)
+```{r}
+# -----------------------------
+# 3. 读取 transfers.csv.gz
+# -----------------------------
+# transfers 中包含病人在住院期间的转科记录，注意其中的 transfertime
+transfers <- read_csv("~/mimic/hosp/transfers.csv.gz", 
+                      col_types = cols(
+                        transfertime = col_datetime()
+                      ))
+pt_transfers <- transfers %>%
+  filter(subject_id == subject_id_target) %>%
+  select(subject_id, hadm_id, careunit)
+  
+# 查看转科信息
+print(pt_transfers)
+```
+```{r}
+pt_labevents <- open_dataset("labevents_pq", format = "parquet") |>
+  # mutate(across(where(is.integer), as.numeric)) |>
+  mutate(subject_id = as.numeric(subject_id)) |>
+  select(subject_id, hadm_id, storetime) |>
+  filter(subject_id == subject_id_target) |>
+  collect()
 
-# ------------------------------
-# 3. Build the ADT Timeline Data
-# ------------------------------
+print(pt_labevents, width = Inf)
 
-# a) Admissions: assume admissions has columns "admittime", "dischtime", and "admission_location"
-adt_adm <- admissions %>%
-  filter(subject_id == !!subject_id) %>%
-  mutate(admittime = ymd_hms(admittime),
-         dischtime = ymd_hms(dischtime)) %>%
-  select(admittime, dischtime, unit = admission_location)
 
-# b) Transfers: assume transfers has "transfertime" and "transfer_to"
-adt_transfers <- transfers %>%
-  filter(subject_id == !!subject_id) %>%
-  mutate(transfertime = ymd_hms(outtime)) %>%
-  select(event_time = transfertime, unit = transfer_to) %>%
-  mutate(event_type = "Transfer")
+```
+```{r}
+procedures_icd <- read_csv("~/mimic/hosp/procedures_icd.csv.gz")
+pt_procedures <- procedures_icd %>%
+  filter(subject_id == subject_id_target) %>%
+  select(subject_id, hadm_id, icd_code, chartdate)
+  
+print(pt_procedures)
+```
+```{r}
+# diagnoses_icd  ICD 
+diagnoses_icd <- read_csv("~/mimic/hosp/d_icd_diagnoses.csv.gz")
+pt_diagnoses <- diagnoses_icd %>%
+  filter(icd_code %in% pt_procedures$icd_code) %>%
+  select(icd_code, long_title)
+  
+print(pt_diagnoses)
+```
+```{r}
+combined_data_half <- pt_transfers %>%
+  left_join(pt_labevents, by = c("subject_id", "hadm_id")) %>%
+  left_join(pt_procedures, by = c("subject_id", "hadm_id")) 
 
-# c) Combine Admission and Discharge events from admissions into one “events” dataframe.
-# We label the start and end of an admission with the same unit.
-adt_events <- adt_adm %>%
-  select(event_time = admittime, unit) %>%
-  mutate(event_type = "Admission") %>%
-  bind_rows(
-    adt_adm %>%
-      select(event_time = dischtime, unit) %>%
-      mutate(event_type = "Discharge")
-  ) %>%
-  bind_rows(adt_transfers) %>%
-  arrange(event_time)
+combined_data <- combined_data_half %>%
+  left_join(pt_diagnoses, by = c("icd_code"))
+print(combined_data)
+```
 
-# Mark events as ICU/CCU if the unit name contains "ICU" or "CCU"
-adt_events <- adt_events %>%
-  mutate(is_icu = if_else(str_detect(unit, regex("ICU|CCU", ignore_case = TRUE)), TRUE, FALSE))
+```{r}
+plot_data <- combined_data
 
-# For drawing line segments, create segments that connect consecutive ADT events.
-adt_segments <- adt_events %>%
-  arrange(event_time) %>%
-  mutate(next_time = lead(event_time)) %>%
-  filter(!is.na(next_time)) %>%
-  # We use a constant y-level for ADT events (here "ADT")
-  mutate(y = "ADT")
-
-# ------------------------------
-# 4. Process Lab and Procedure Events
-# ------------------------------
-
-# a) Lab events: assume labevents has a "charttime" field.
-lab_events <- labevents %>%
-  filter(subject_id == !!subject_id) %>%
-  mutate(charttime = ymd_hms(charttime)) %>%
-  select(event_time = charttime) %>%
-  mutate(event_type = "Lab",
-         y = "Lab")
-
-# b) Procedure events: assume procedures_icd has a "charttime" and a procedure code (here assumed to be in "icd_code")
-proc_events <- procedures_icd %>%
-  filter(subject_id == !!subject_id) %>%
-  mutate(charttime = ymd_hms(charttime)) %>%
-  select(event_time = charttime, procedure_code = icd_code) %>%
-  mutate(event_type = "Procedure",
-         y = "Procedure")
-# Optionally, join with d_icd_procedures to get a descriptive title (if available)
-proc_events <- proc_events %>%
-  left_join(d_icd_procedures, by = c("procedure_code" = "icd_code"))
-# The variable "procedure_code" will be used to assign different shapes.
-
-# ------------------------------
-# 5. Process Diagnoses to Identify Top 3
-# ------------------------------
-
-# a) Join diagnoses_icd with d_icd_diagnoses to obtain diagnosis descriptions.
-diag_events <- diagnoses_icd %>%
-  filter(subject_id == !!subject_id) %>%
-  select(diagnosis_code = icd_code) %>%
-  left_join(d_icd_diagnoses, by = c("diagnosis_code" = "icd_code"))
-
-# b) Count and select the top 3 diagnoses (by frequency)
-top3_diag <- diag_events %>%
-  count(diagnosis_code, short_title, sort = TRUE) %>%
-  top_n(3, n)
-top3_diag_str <- paste(top3_diag$short_title, collapse = ", ")
-
-# ------------------------------
-# 6. Create the ggplot Visualization
-# ------------------------------
-
-# We plot three “rows” along the y-axis:
-#  - ADT events (“ADT”) as colored line segments (thicker if is_icu == TRUE)
-#  - Lab events (“Lab”) as crosses (shape = 4)
-#  - Procedure events (“Procedure”) as points with different shapes based on procedure code
-
-p <- ggplot() +
-  # ADT segments
-  geom_segment(data = adt_segments,
-               aes(x = event_time, xend = next_time,
-                   y = y, yend = y,
-                   color = unit,
-                   size = is_icu),
-               lineend = "round") +
-  # Lab events as crosses (shape 4 is a cross)
-  geom_point(data = lab_events,
-             aes(x = event_time, y = y),
-             shape = 4, size = 3, color = "black") +
-  # Procedure events as points (the shape is mapped to procedure_code)
-  geom_point(data = proc_events,
-             aes(x = event_time, y = y, shape = procedure_code),
-             size = 3, color = "blue") +
-  # Manually set sizes so that ICU stays appear thicker:
-  scale_size_manual(values = c("FALSE" = 0.5, "TRUE" = 1.5)) +
-  # Improve the x-axis date formatting:
-  scale_x_datetime(labels = date_format("%Y-%m-%d %H:%M"), date_breaks = "1 day") +
+ggplot(combined_data,aes(x = event_time, y = event_type, color = combined_data$careunit)) +
+  geom_segment(aes(xend = event_end, yend = event_type, linewidth = is_icu))+ 
+  geom_point(aes(shape_lable), size = 4, na.rm = FALSE, alpha = 1) +
+  scale_color_manual( values = combined_data$careunit + colors, na.translate = TRUE) +
+  scale_shape_manual(values = procedure_shapes, na.translate = TRUE, drop = FALSE) +
   labs(
-    title = paste0("Patient Trajectory for Subject ", subject_id, ": ",
-                   patient$gender, ", Age: ",
-                   # Estimate age at time of plotting from dob (assumes patient$dob in YYYY-MM-DD)
-                   as.integer(interval(ymd(patient$dob), Sys.Date())/years(1)), " years"),
-    subtitle = paste("Top 3 Diagnoses:", top3_diag_str),
+    title = paste("Patient", subject_id_target, ",", pt_adm$race[1], ", ", pt_info$anchor_age, "year old"),
+    subtitle = paste(top3_diagnoses, collapse = "\n "),
     x = "Calendar Time",
     y = "Event Type",
-    color = "Care Unit"
+    color = "Care Unit",
+    shape = "Procedure"
   ) +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1),
-        legend.title = element_text(size = 10),
-        legend.text = element_text(size = 9))
-
-# ------------------------------
-# 7. Display the Plot
-# ------------------------------
-
-print(p)
-
-
+  theme(lengend.position = "bottom")
 ```
 
 ```{r}
-# remove all the table 
-# clear workspace, only keep tripple
+library(dplyr)
+library(ggplot2)
 
-rm(list = setdiff(ls(), "subject_id"))
+# ============================
+# 1. 从已有的 final 表 combined_data 构造绘图变量
+# ============================
+# 例如你的 combined_data 数据框结构如下：
+# subject_id | hadm_id | careunit | storetime | icd_code | chartdate | icd_version | long_title.x.x
+
+# 基于 combined_data 增加绘图所需的变量
+plot_data <- combined_data %>%
+  # 定义事件开始和结束时间
+  mutate(
+    event_time = storetime,        # 使用 storetime 作为开始时间
+    event_end  = as.POSIXct(chartdate),  # 将 chartdate 转换为时间类型（如果尚未转换）
+    event_type = ("Procedure","ADT","Lab")
+    # 根据 careunit 判断是否为 ICU/CCU，这里简单示例：若 careunit 包含 ICU 或 CCU，则认为是 ICU，否则 FALSE
+    is_icu = ifelse(grepl("ICU|CCU", careunit, ignore.case = TRUE), TRUE, FALSE),
+    # 定义点形状变量，直接使用 long_title.x.x 作为标签
+    shape_lable = long_title.x.x
+  )
+
+# ============================
+# 2. 定义颜色和形状映射
+# ============================
+# 定义护理单元颜色（根据数据实际的 careunit 值进行扩充）
+unique_careunits <- unique(plot_data$careunit)
+# 这里举例使用内置调色板，可自定义为命名向量
+care_unit_colors <- setNames(
+  RColorBrewer::brewer.pal(n = max(3, length(unique_careunits)), name = "Set2")[1:length(unique_careunits)],
+  unique_careunits
+)
+
+# 定义 procedure_shapes：将 shape_lable 中不同的值映射到不同的形状
+unique_shapes <- unique(plot_data$shape_lable)
+# 形状可选值一般为整数，例如 15, 16, 17, ...，这里简单分配
+procedure_shapes <- setNames(seq(15, length.out = length(unique_shapes)), unique_shapes)
+
+# ============================
+# 3. 计算 Top 3 Diagnoses
+# ============================
+# 统计 long_title.x.x 出现次数，取前三个
+top3_diagnoses <- plot_data %>%
+  count(long_title.x.x, sort = TRUE) %>%
+  head(3) %>%
+  pull(long_title.x.x)
+
+# ============================
+# 5. 绘图
+# ============================
+ggplot(plot_data, aes(x = event_time, y = event_type, color = careunit)) +
+  # 绘制表示事件时间段的线段，粗细根据 is_icu 设置（这里用 ifelse 将 TRUE/FALSE 转为数值）
+  geom_segment(aes(xend = event_end, yend = event_type, linewidth = ifelse(is_icu, 2, 1))) +
+  # 绘制关键点，点的形状根据 shape_lable 进行映射
+  geom_point(aes(shape = shape_lable), size = 4, na.rm = FALSE, alpha = 1) +
+  scale_color_manual(values = care_unit_colors, na.translate = TRUE) +
+  scale_shape_manual(values = procedure_shapes, na.translate = TRUE, drop = FALSE) +
+  labs(
+    title = paste("Patient", subject_id_target, ",", pt_adm$race[1], ",", pt_info$anchor_age, "years old"),
+    subtitle = paste(top3_diagnoses, collapse = "\n"),
+    x = "Calendar Time",
+    y = "Event Type",
+    color = "Care Unit",
+    shape = "Procedure"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
 
 ```
-
-```{r}
-icu_cohort |>
-  group_by(race) |>
-  summarise(
-    mortality_rate = sum(mortality)/n()
-  )|>
-  print(width = Inf) |>
-  ggplot() +
-    geom_col(mapping = aes(x = reorder(race, mortality_rateo),y = mortality_rate)) +
-    coord_flip()
-  
-```
-
 ### Q1.2 ICU stays
 
 ICU stays are a subset of ADT history. This figure shows the vitals of the patient `10001217` during ICU stays. The x-axis is the calendar time, and the y-axis is the value of the vital. The color of the line represents the type of vital. The facet grid shows the abbreviation of the vital and the stay ID.
@@ -483,7 +496,7 @@ We are interested in the lab measurements of creatinine (50912), potassium (5097
 
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `labevents_pq` folder available at the current working directory `hw3`, for example, by a symbolic link.
 
-####Solution
+#### Solution
 
 
 ```{r}
@@ -558,7 +571,7 @@ labevents_tble <- open_dataset("labevents_pq",format = "parquet") |>
   collect() |>
   # sort for grading purpose
   arrange(subject_id, stay_id) |>
-  relocate(subject_id, stay_id, sort(names(.))) |>
+  relocate(subject_id, stay_id) |>
   print(width = Inf)
 ```
 
@@ -590,7 +603,7 @@ We are interested in the vitals for ICU patients: heart rate (220045), systolic 
 
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `chartevents_pq` folder available at the current working directory, for example, by a symbolic link.
 
-####Solution
+#### Solution
 
 ```{r}
 # Specify the itemids for the required lab tests
@@ -608,7 +621,6 @@ d_items <-
 ```
 
 ```{r}
-# 打开 chartevents 数据集（支持 gz 压缩格式）
 chartevents_tble <- open_dataset("chartevents_pq", 
                             format = "parquet") |>
   to_duckdb() |>
@@ -651,6 +663,36 @@ Let us create a tibble `mimic_icu_cohort` for all ICU stays, where rows are all 
 The final `mimic_icu_cohort` should have one row per ICU stay and columns for each variable.
 
 ![](mimic_icu_cohort.png)
+
+```{r}
+library(tidyr)
+library(lubridate)
+library(arrow)
+
+patients_tble <- read_csv("~/mimic/hosp/patients.csv.gz")
+admissions_tble <- read_csv("~/mimic/hosp/admissions.csv.gz")
+
+icu_cohort <- icustays_tble %>%
+  left_join(patients_tble, by = "subject_id") %>%
+  filter(anchor_age >= 18)
+
+icu_cohort <- icu_cohort %>%
+  left_join(admissions_tble, by = c ("subject_id", "hadm_id"))
+
+
+icu_cohort <- icu_cohort %>%
+  left_join(chartevents_tble, by = c ("subject_id", "stay_id")) 
+
+
+mimic_icu_cohort <- icu_cohort %>%
+  left_join(labevents_tble,c ("subject_id", "stay_id")) 
+  
+mimic_icu_cohort <- mimic_icu_cohort 
+
+print(head(mimic_icu_cohort))
+```
+
+
 
 ## Q8. Exploratory data analysis (EDA)
 
