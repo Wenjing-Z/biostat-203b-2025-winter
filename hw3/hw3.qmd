@@ -167,8 +167,6 @@ print(combined_data)
 ```
 
 ```{r}
-plot_data <- combined_data
-
 ggplot(combined_data,aes(x = event_time, y = event_type, color = combined_data$careunit)) +
   geom_segment(aes(xend = event_end, yend = event_type, linewidth = is_icu))+ 
   geom_point(aes(shape_lable), size = 4, na.rm = FALSE, alpha = 1) +
@@ -264,6 +262,49 @@ ICU stays are a subset of ADT history. This figure shows the vitals of the patie
 
 Do a similar visualization for the patient `10063848`.
 
+
+**Solution:**
+```{r}
+subject <- 10063848
+vitals <- c(220045, 220179, 220180, 223761, 220210)
+
+d_items <- read_csv("~/mimic/icu/d_items.csv.gz") |>
+  filter(itemid %in% vitals) %>%
+  mutate(itemid = as.integer(itemid)) 
+
+print(d_items)
+```
+
+```{r}
+icuvitals <- open_dataset("chartevents_pq", format = "parquet") |>
+  to_duckdb() |>
+  filter(subject_id %in% subject) |>
+  select(subject_id, stay_id, charttime, itemid, valuenum) |>
+  left_join(d_items, by = "itemid", copy = TRUE) |>
+  filter(itemid %in% vitals) |>
+  select(subject_id, stay_id, charttime, itemid, valuenum, abbreviation) |>
+  collect()
+
+print(icuvitals)
+```
+```{r}
+ggplot(data = icuvitals, aes(x = charttime, y = valuenum, color = abbreviation))+
+  geom_line() +
+  geom_point() +
+  facet_grid(abbreviation ~ stay_id,scale = "free_x") +
+  scale_x_datetime(date_labels = "%b %d %H:%M") +
+  labs(
+    title = paste("Patient,", subject_id_target, "ICU Stays -
+ Vitals"), 
+       x = NULL,
+       y = NULL, 
+       color = "Vital Type") +
+  theme_minimal()
+  theme(
+    legend.position = "none",
+    strip.text = element_text(size = 8)
+  )
+```
 ## Q2. ICU stays
 
 `icustays.csv.gz` (<https://mimic.mit.edu/docs/iv/modules/icu/icustays/>) contains data about Intensive Care Units (ICU) stays. The first 10 lines are
