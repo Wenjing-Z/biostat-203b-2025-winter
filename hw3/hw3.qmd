@@ -703,8 +703,44 @@ Summarize the following information about the ICU stay cohort `mimic_icu_cohort`
 
 -   Length of ICU stay `los` vs demographic variables (race, insurance, marital_status, gender, age at intime)
 
+```{r}
+# Scatter plot of Age at intime vs LOS
+ggplot(mimic_icu_cohort, aes(x = anchor_age, y = los)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "ICU LOS vs. Age at ICU Admission", x = "Age at intime", y = "ICU LOS (days)") +
+  theme_minimal()
+```
+
 -   Length of ICU stay `los` vs the last available lab measurements before ICU stay
 
+```{r}
+# Suppose 'last_lab_value' is the last lab measurement before ICU admission
+ggplot(mimic_icu_cohort, aes(x = `heart rate`, y = los)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  labs(title = "ICU LOS vs. Last Lab Measurement", y = "ICU LOS (days)") +
+  theme_minimal()
+
+```
+
 -   Length of ICU stay `los` vs the first vital measurements within the ICU stay
+```{r}
+ggplot(mimic_icu_cohort, aes(x = `temperature fahrenheit`, y = los)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "darkgreen") +
+  labs(title = "ICU LOS vs. First Vital Measurement", x = "temperature", y = "ICU LOS (days)") +
+  theme_minimal()
+```
 
 -   Length of ICU stay `los` vs first ICU unit
+
+```{r}
+ggplot(mimic_icu_cohort, aes(x = first_careunit, y = los)) +
+  geom_boxplot() +
+  labs(title = "ICU LOS by First ICU Unit", x = "ICU Unit", y = "ICU LOS (days)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
