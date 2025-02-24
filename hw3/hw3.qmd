@@ -483,54 +483,122 @@ We are interested in the lab measurements of creatinine (50912), potassium (5097
 
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `labevents_pq` folder available at the current working directory `hw3`, for example, by a symbolic link.
 
+####Solution
+
+
+```{r}
+library(readr)
+library(dplyr)
+
+
+# Specify the itemids for the required lab tests
+dlabitems_tble <- 
+  read_csv("~/mimic/hosp/d_labitems.csv.gz", show_col_types = FALSE) %>%
+  filter(itemid %in% c(
+    50912, 
+    50971, 
+    50983, 
+    50902, 
+    50882, 
+    51221, 
+    51301, 
+    50931
+    )) %>%
+  mutate(itemid = as.integer(itemid)) %>%
+  print(width = Inf)
+```
 ```{r}
 # load necessary libraries
 library(dplyr)
 library(readr)
 library(lubridate)
 library(data.table)
-# Load the labevents data
 
-labevents_tble <- fread("labevents.csv")
-# labevents_file_path <- "labevents.csv"
-# labevents_tble <- read_csv(labevents_file_path)
 
 # Load the icustays data
 icustays_file_path <- "~/mimic/icu/icustays.csv.gz"
 icustays_tble <- read_csv(icustays_file_path)
-
-# Load the lab items dictionary to get itemids for the required tests
-labitems_file_path <- "~/mimic/hosp/d_labitems.csv.gz"
-d_labitems_tble <- read_csv(labitems_file_path)
-
 ```
+
+```{r}
+# Load the labevents data
+labevents_tble <- open_dataset("labevents_pq",format = "parquet") |>
+  # creat a virtual table in DuckDB
+  to_duckdb() |>
+  # only variables subject_id, itemid, storetime, valuenum are needed
+  select(subject_id, itemid, storetime, valuenum) |>
+  # restrict to itemid of interest
+  filter(itemid %in% dlabitems_tble$itemid) |>
+  # put in the intime of ICU stays, copy = Ture to join data from diff src
+  left_join(
+    select(icustays_tble, subject_id, stay_id, intime),
+    by = c("subject_id"),
+    copy = TRUE 
+    ) |>
+  # only keep lab items available before this ICU stay
+  filter(storetime < intime) |>
+  # group by itemid
+  group_by(subject_id, stay_id, itemid) |>
+  # only keep the last storetime for each item before intime
+  slice_max(storetime, n = 1) |>
+  # do not need storetime and intime anymore
+  select(-storetime, -intime) |>
+  ungroup() |>
+  pivot_wider(names_from = itemid, values_from = valuenum) |>
+  #more informative column names
+  rename_at(
+    vars(as.character(dlabitems_tble$itemid)),
+    ~str_to_lower(dlabitems_tble$label)
+    ) |>
+  rename(wbc = `white blood cells`) |>
+  #force computation
+  show_query() |>
+  collect() |>
+  # sort for grading purpose
+  arrange(subject_id, stay_id) |>
+  relocate(subject_id, stay_id, sort(names(.))) |>
+  print(width = Inf)
+```
+
 
 
 ```{r}
 # Filter the lab items for the required tests
-# Specify the itemids for the required lab tests
-required_itemids <- c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 50931)
-
 # Filter labevents for the required items
 filtered_labevents <- labevents_tble %>%
   filter(itemid %in% required_itemids)
 ```
 
+
 ```{r}
-#| eval: true
-library(arrow)
+#| eval: false
 
-labevents<- open_dataset("labevents.csv", format = "csv")
+ds_csv <- open_dataset("labevents.csv", format = "csv")
 
-result <- ds %>%
+# Write the dataset in Parquet format into a directory 
+write_dataset(ds_csv, path = "labevents_pq", format = "parquet")
+
+ds_parquet <- open_dataset("labevents_pq", format = "parquet")
+
+result_parquet <- ds_parquet %>%
   select(subject_id, itemid, charttime, valuenum) %>%
-  filter(itemid %in% c(50912, 50971, 50983, 50902, 50882, 51221, 51301, 
-                        50931)) %>%
-  collect()  # Pull the filtered data into an R tibble
+  filter(itemid %in% dlabitems_table$itemid)
+  collect()  
+
+file_path <- "labevents_pq"
 
 
-# Display the first 10 rows of the result tibble
-print(head(result, 10))
+library(arrow)
+library(dplyr)
+
+# 以懒加载方式打开 Parquet 文件
+labevents <- open_dataset("labevents_pq", format = "parquet")
+
+# 使用 head() 获取前十行，并用 collect() 实际加载数据
+head_data <- labevents %>% head(10) %>% collect()
+
+# 显示结果
+print(head_data)
 
 ```
 
