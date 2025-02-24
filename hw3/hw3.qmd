@@ -518,6 +518,8 @@ library(data.table)
 # Load the icustays data
 icustays_file_path <- "~/mimic/icu/icustays.csv.gz"
 icustays_tble <- read_csv(icustays_file_path)
+icustays_tble <- icustays_tble %>%
+  mutate(subject_id = as.integer(subject_id))
 ```
 
 ```{r}
@@ -562,85 +564,12 @@ labevents_tble <- open_dataset("labevents_pq",format = "parquet") |>
 
 
 
-```{r}
-# Filter the lab items for the required tests
-# Filter labevents for the required items
-filtered_labevents <- labevents_tble %>%
-  filter(itemid %in% required_itemids)
-```
-
-
-```{r}
-#| eval: false
-
-ds_csv <- open_dataset("labevents.csv", format = "csv")
-
-# Write the dataset in Parquet format into a directory 
-write_dataset(ds_csv, path = "labevents_pq", format = "parquet")
-
-ds_parquet <- open_dataset("labevents_pq", format = "parquet")
-
-result_parquet <- ds_parquet %>%
-  select(subject_id, itemid, charttime, valuenum) %>%
-  filter(itemid %in% dlabitems_table$itemid)
-  collect()  
-
-file_path <- "labevents_pq"
-
-
-library(arrow)
-library(dplyr)
-
-# 以懒加载方式打开 Parquet 文件
-labevents <- open_dataset("labevents_pq", format = "parquet")
-
-# 使用 head() 获取前十行，并用 collect() 实际加载数据
-head_data <- labevents %>% head(10) %>% collect()
-
-# 显示结果
-print(head_data)
-
-```
 
 
 
 
-```{r}
-# Merge with icustays_tble to ensure the measurements are only for ICU patients
-merged_data <- filtered_labevents %>%
-  inner_join(icustays_tble, by = "subject_id") %>%
-  filter(storetime <= admittime)  # Ensure the measurement is before or during the ICU stay
-
-```
 
 
-```{r}
-# Get the last available measurement for each ICU stay:
-# Convert storetime to datetime for comparison
-merged_data$storetime <- as.POSIXct(merged_data$storetime)
-
-# Find the last available measurement before the ICU stay for each subject_id and hadm_id
-last_measurements <- merged_data %>%
-  group_by(subject_id, hadm_id, itemid) %>%
-  filter(storetime == max(storetime)) %>%
-  ungroup()
-
-```
-
-
-```{r}
-
-# Reshape the data to get one row per ICU stay with columns for each lab measurement:
-
-# Reshape the data: one row per ICU stay with columns for each lab measurement
-final_data <- last_measurements %>%
-  select(subject_id, hadm_id, itemid, valuenum) %>%
-  spread(key = itemid, value = valuenum)
-
-# View the final reshaped data
-head(final_data)
-
-```
 ## Q6. Vitals from charted events
 
 `chartevents.csv.gz` (<https://mimic.mit.edu/docs/iv/modules/icu/chartevents/>) contains all the charted data available for a patient. During their ICU stay, the primary repository of a patient’s information is their electronic chart. The `itemid` variable indicates a single measurement type in the database. The `value` variable is the value measured for `itemid`. The first 10 lines of `chartevents.csv.gz` are
@@ -660,6 +589,55 @@ We are interested in the vitals for ICU patients: heart rate (220045), systolic 
 ![](chartevents_tble.png)
 
 Hint: Use the Parquet format you generated in Homework 2. For reproducibility, make `chartevents_pq` folder available at the current working directory, for example, by a symbolic link.
+
+####Solution
+
+```{r}
+# Specify the itemids for the required lab tests
+d_items <- 
+  read_csv("~/mimic/icu/d_items.csv.gz", show_col_types = FALSE) %>%
+  filter(itemid %in% c(
+    220045,
+    220179,
+    220180,
+    223761,
+    220210
+    )) %>%
+  mutate(itemid = as.integer(itemid)) %>%
+  print(width = Inf)
+```
+
+```{r}
+# 打开 chartevents 数据集（支持 gz 压缩格式）
+chartevents_tble <- open_dataset("chartevents_pq", 
+                            format = "parquet") |>
+  to_duckdb() |>
+  select(subject_id, itemid, storetime, valuenum) |>
+  filter(itemid %in% chartevents_tble$itemid) %>%
+  # mutate(subject_id = as.integer(subject_id)) %>%
+  # 保留出现在 icustays_tble 中的患者记录（假设以 subject_id 进行匹配）
+  left_join(
+    select(icustays_tble, subject_id, stay_id, intime, outtime), 
+    by = c("subject_id"),
+    copy = TRUE
+    ) |>
+  filter(storetime > intime & storetime < outtime) |>
+  group_by(subject_id, stay_id, itemid) |>
+  slice_min(storetime, n = 1) |>
+  select(-storetime, -intime, -outtime) |>
+  ungroup() |>
+  pivot_wider(names_from = itemid, values_from = valuenum) |>
+  rename_at(
+    vars(as.character(d_items$itemid)),
+    ~str_to_lower(d_items$label)
+    ) |>
+  show_query() |>
+  collect() |>
+  arrange(subject_id, stay_id) |>
+  relocate(subject_id, stay_id) |>
+  print(width = Inf)
+```
+
 
 ## Q7. Putting things together
 
