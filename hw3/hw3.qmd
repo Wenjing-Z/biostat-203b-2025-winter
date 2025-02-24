@@ -28,6 +28,7 @@ library(memuse)
 library(pryr)
 library(R.utils)
 library(tidyverse)
+library(ggplot2)
 ```
 
 Display your machine memory.
@@ -166,79 +167,41 @@ combined_data <- combined_data_half %>%
 print(combined_data)
 ```
 
-```{r}
-ggplot(combined_data,aes(x = event_time, y = event_type, color = combined_data$careunit)) +
-  geom_segment(aes(xend = event_end, yend = event_type, linewidth = is_icu))+ 
-  geom_point(aes(shape_lable), size = 4, na.rm = FALSE, alpha = 1) +
-  scale_color_manual( values = combined_data$careunit + colors, na.translate = TRUE) +
-  scale_shape_manual(values = procedure_shapes, na.translate = TRUE, drop = FALSE) +
-  labs(
-    title = paste("Patient", subject_id_target, ",", pt_adm$race[1], ", ", pt_info$anchor_age, "year old"),
-    subtitle = paste(top3_diagnoses, collapse = "\n "),
-    x = "Calendar Time",
-    y = "Event Type",
-    color = "Care Unit",
-    shape = "Procedure"
-  ) +
-  theme_minimal() +
-  theme(lengend.position = "bottom")
-```
 
 ```{r}
-library(dplyr)
-library(ggplot2)
 
-# ============================
-# 1. 从已有的 final 表 combined_data 构造绘图变量
-# ============================
-# 例如你的 combined_data 数据框结构如下：
-# subject_id | hadm_id | careunit | storetime | icd_code | chartdate | icd_version | long_title.x.x
 
-# 基于 combined_data 增加绘图所需的变量
+
 plot_data <- combined_data %>%
-  # 定义事件开始和结束时间
+  
   mutate(
-    event_time = storetime,        # 使用 storetime 作为开始时间
-    event_end  = as.POSIXct(chartdate),  # 将 chartdate 转换为时间类型（如果尚未转换）
-    event_type = ("Procedure","ADT","Lab")
-    # 根据 careunit 判断是否为 ICU/CCU，这里简单示例：若 careunit 包含 ICU 或 CCU，则认为是 ICU，否则 FALSE
+    event_time = storetime,        
+    event_end  = as.POSIXct(chartdate),   
+    event_type = "Procedure",
     is_icu = ifelse(grepl("ICU|CCU", careunit, ignore.case = TRUE), TRUE, FALSE),
-    # 定义点形状变量，直接使用 long_title.x.x 作为标签
-    shape_lable = long_title.x.x
+    shape_lable = long_title
   )
 
-# ============================
-# 2. 定义颜色和形状映射
-# ============================
-# 定义护理单元颜色（根据数据实际的 careunit 值进行扩充）
 unique_careunits <- unique(plot_data$careunit)
-# 这里举例使用内置调色板，可自定义为命名向量
 care_unit_colors <- setNames(
   RColorBrewer::brewer.pal(n = max(3, length(unique_careunits)), name = "Set2")[1:length(unique_careunits)],
   unique_careunits
 )
 
-# 定义 procedure_shapes：将 shape_lable 中不同的值映射到不同的形状
+
 unique_shapes <- unique(plot_data$shape_lable)
-# 形状可选值一般为整数，例如 15, 16, 17, ...，这里简单分配
+
 procedure_shapes <- setNames(seq(15, length.out = length(unique_shapes)), unique_shapes)
 
-# ============================
-# 3. 计算 Top 3 Diagnoses
-# ============================
-# 统计 long_title.x.x 出现次数，取前三个
 top3_diagnoses <- plot_data %>%
-  count(long_title.x.x, sort = TRUE) %>%
+  count(long_title, sort = TRUE) %>%
   head(3) %>%
-  pull(long_title.x.x)
+  pull(long_title)
 
-# ============================
-# 5. 绘图
-# ============================
 ggplot(plot_data, aes(x = event_time, y = event_type, color = careunit)) +
-  # 绘制表示事件时间段的线段，粗细根据 is_icu 设置（这里用 ifelse 将 TRUE/FALSE 转为数值）
+ 
   geom_segment(aes(xend = event_end, yend = event_type, linewidth = ifelse(is_icu, 2, 1))) +
-  # 绘制关键点，点的形状根据 shape_lable 进行映射
+  
   geom_point(aes(shape = shape_lable), size = 4, na.rm = FALSE, alpha = 1) +
   scale_color_manual(values = care_unit_colors, na.translate = TRUE) +
   scale_shape_manual(values = procedure_shapes, na.translate = TRUE, drop = FALSE) +
@@ -252,7 +215,6 @@ ggplot(plot_data, aes(x = event_time, y = event_type, color = careunit)) +
   ) +
   theme_minimal() +
   theme(legend.position = "bottom")
-
 ```
 ### Q1.2 ICU stays
 
