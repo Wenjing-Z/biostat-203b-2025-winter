@@ -613,9 +613,8 @@ chartevents_tble <- open_dataset("chartevents_pq",
                             format = "parquet") |>
   to_duckdb() |>
   select(subject_id, itemid, storetime, valuenum) |>
-  filter(itemid %in% chartevents_tble$itemid) %>%
-  # mutate(subject_id = as.integer(subject_id)) %>%
-  # 保留出现在 icustays_tble 中的患者记录（假设以 subject_id 进行匹配）
+  filter(itemid %in%d_items$itemid) %>%
+  mutate(subject_id = as.integer(subject_id)) %>%
   left_join(
     select(icustays_tble, subject_id, stay_id, intime, outtime), 
     by = c("subject_id"),
