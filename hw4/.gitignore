@@ -1,0 +1,4 @@
+*.json
+BigQuery*
+grade*
+mimic*
