@@ -104,7 +104,8 @@ Connect to the `labevents` table and retrieve a subset that only contain subject
 # # TODO
 ######## Connect to the labevents table
 labevents_tble <- tbl(con_bq, "labevents") |>
-  arrange(storetime) |>
+  mutate(subject_id = as.integer(subject_id)) |>
+  # arrange(storetime) |>
   # show_query() |>
   print(width = Inf)
 ```
@@ -119,36 +120,61 @@ item_id <- c(
     50902, 
     50882, 
     51221, 
-    51301, 
-    50931
+    50931,
+    51301
     )
   
 d_labitems_tble <- 
   tbl(con_bq, "d_labitems", show_col_types = FALSE) |>
   filter(itemid %in% item_id) %>%
-  mutate(itemid = as.integer(itemid)) %>%
+  select(itemid, label) %>%
+  #mutate(itemid = as.integer(itemid)) %>%
+  collect() |>
   print(width = Inf)
 ```
 ```{r}
-icustays_tble <- icustays_tble %>%
-  mutate(subject_id = as.integer(subject_id))
+# icustays_tble <- icustays_tble %>%
+#   mutate(subject_id = as.integer(subject_id))
 
-labevents_tble <- 
-  tbl(con_bq, "labevents", show_col_types = FALSE) |>
-  open_dataset("labevents_pq",format = "parquet") |>
-  # creat a virtual table in DuckDB
-  to_duckdb() |>
-  # only variables subject_id, itemid, storetime, valuenum are needed
-  select(subject_id, itemid, storetime, valuenum)
-```
-```{r}
-####
+column_order <- (d_labitems_tble$label) |>
+  str_to_lower()
+
 labevents_tble <- labevents_tble |>
-  semi_join(icustays_tble, by = c("subject_id", "hadm_id")) |>
-  semi_join(labitems_tble, by = "itemid") |>
+  select(subject_id, itemid, storetime, valuenum) |> 
+  filter(itemid %in% item_id) |>
+  left_join(
+    select(icustays_tble, subject_id, stay_id, intime),
+    by = c("subject_id"),
+    copy = TRUE
+  ) |>
+  # keep the last lab measurements by `storetime`
+  mutate(
+    storetime = as.POSIXct(storetime),
+    intime = as.POSIXct(intime)
+  ) |>
+  filter(storetime < intime) |>
+   # group by itemid
+  group_by(subject_id, stay_id, itemid) |>
+  # only keep the last storetime for each item before intime
+  slice_max(storetime, n = 1) |>
+  # do not need storetime and intime anymore
+  select(-storetime, -intime) |>
+  ungroup() |>
+  pivot_wider(names_from = itemid, values_from = valuenum) |>
+  #more informative column names
+  rename_at(
+    vars(as.character(d_labitems_tble$itemid)),
+    ~str_to_lower(d_labitems_tble$label)
+    ) |>
+  #force computation
   # show_query() |>
+  # sort for grading purpose
+  arrange(subject_id, stay_id) |>
+  relocate(subject_id, stay_id) |>
+  select(subject_id, stay_id, all_of(column_order)) |>
   print(width = Inf)
 ```
+
 
 ### Q1.6 `chartevents` data
 
