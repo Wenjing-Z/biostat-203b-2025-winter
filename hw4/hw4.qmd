@@ -261,6 +261,41 @@ Hint: Below is a numerical summary of my tibble after preprocessing:
 
 <iframe width=95% height="500" src="./mimic_icu_cohort_gtsummary.html"></iframe>
 
+```{r}
+# # TODO
+library(forcats)
+
+mimic_icu_cohort_1 <- mimic_icu_cohort |>
+  select(first_careunit, last_careunit, los, admission_type, admission_location, discharge_location, insurance, language, marital_status, race, gender, dod, chloride, creatinine, sodium, potassium, glucose, hematocrit, `white blood cells`, bicarbonate, `non invasive blood pressure systolic`, `non invasive blood pressure diastolic`, `respiratory rate`, `temperature fahrenheit`, `heart rate`, `anchor_age`) |>
+  mutate(
+    first_careunit = fct_lump_n(first_careunit, n = 5, other_level = "Other"),
+    last_careunit = fct_lump_n(last_careunit, n = 5, other_level = "Other"),
+    admission_type = fct_lump_n(admission_type, n = 5, other_level = "Other"),
+    admission_location = fct_lump_n(admission_location, n = 5, other_level = "Other"),
+    discharge_location = fct_lump_n(discharge_location, n = 5, other_level = "Other"),
+    race = fct_collapse(
+      race,
+      ASIAN = c("ASIAN", "ASIAN - ASIAN INDIAN", "ASIAN - CHINESE", "ASIAN - SOUTH EAST ASIAN", "ASIAN - KOREAN"),
+      BLACK = c("BLACK/AFRICAN AMERICAN", "BLACK/CAPE VERDEAN", "BLACK/CARIBBEAN ISLAND", "BLACK/CAPE VERDEAN", "BLACK/AFRICAN"),
+      HISPANIC = c("HISPANIC OR LATINO", "HISPANIC/LATINO - SALVADORAN", "HISPANIC/LATINO - CENTRAL AMERICAN", "HISPANIC/LATINO - COLUMBIAN", "HISPANIC/LATINO - CUBAN", "HISPANIC/LATINO - GUATEMALAN", "HISPANIC/LATINO - DOMINICAN", "HISPANIC/LATINO - GUATEMALAN", "HISPANIC/LATINO - COLOMBIAN", "HISPANIC/LATINO - HONDURAN", "HISPANIC/LATINO - NICARAGUAN", "HISPANIC/LATINO - MEXICAN", "HISPANIC/LATINO - PUERTO RICAN"),
+      WHITE = c("WHITE", "WHITE - RUSSIAN", "WHITE - OTHER EUROPEAN", "WHITE - EASTERN EUROPEAN", "WHITE - BRAZILIAN", "WHITE - EASTERN EUROPEAN"),
+      Other = c("UNKNOWN", "OTHER", "UNABLE TO OBTAIN", "PATIENT DECLINED TO ANSWER", "MULTIPLE RACE/ETHNICITY", "NATIVE HAWAIIAN OR OTHER PACIFIC ISLANDER", "AMERICAN INDIAN/ALASKA NATIVE", "SOUTH AMERICAN", "PORTUGUESE")
+    ),
+    los_long = ifelse(los >= 2, TRUE, FALSE)
+  )
+
+summary_tbl <- mimic_icu_cohort_1 |>
+  tbl_summary(
+    by = los_long,
+    statistic = list(all_categorical() ~ "{n} ({p}%)", all_continuous() ~ "{mean} ({sd})"),
+    missing = "no"
+  ) |>
+  add_p()
+
+# Display the summary table
+summary_tbl
+```
+
 ### Q1.9 Save the final tibble
 
 Save the final tibble to an R data file `mimic_icu_cohort.rds` in the `mimiciv_shiny` folder.
