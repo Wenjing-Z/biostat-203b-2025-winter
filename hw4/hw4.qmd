@@ -112,7 +112,7 @@ labevents_tble <- tbl(con_bq, "labevents") |>
 
 ```{r}
 # # TODO
-###### Retrieve a subset that only contain subjects who appear in icustays_tble and the lab items listed in HW3
+###### Retrieve a subset for target subjects 
 item_id <- c(
     50912, 
     50971, 
@@ -133,9 +133,6 @@ d_labitems_tble <-
   print(width = Inf)
 ```
 ```{r}
-# icustays_tble <- icustays_tble %>%
-#   mutate(subject_id = as.integer(subject_id))
-
 column_order <- (d_labitems_tble$label) |>
   str_to_lower()
 
@@ -181,8 +178,62 @@ labevents_tble <- labevents_tble |>
 Connect to `chartevents` table and retrieve a subset that only contain subjects who appear in `icustays_tble` and the chart events listed in HW3. Only keep the first chart events (by `storetime`) during ICU stay and pivot chart events to become variables/columns. Write all steps in _one_ chain of pipes. Similary to HW3, if a vital has multiple measurements at the first `storetime`, average them.
 ```{r}
 # # TODO
-# chartevents_tble <- 
+#### Connect to the chartevents table
+chartevents_tble <- tbl(con_bq, "chartevents") |>
+  mutate(subject_id = as.integer(subject_id)) |>
+  print(width = Inf)
 ```
+```{r}
+d_items <- tbl(con_bq, "d_items") %>%
+  filter(itemid %in% c(
+    220045,
+    220179,
+    220180,
+    223761,
+    220210
+    )) %>%
+  mutate(itemid = as.integer(itemid)) %>%
+  collect() |>
+  print(width = Inf)
+```
+```{r}
+chartevents_tble <- chartevents_tble |>
+  select(subject_id, itemid, storetime, valuenum) |> 
+  filter(itemid %in% d_items $ itemid) %>%
+  left_join(
+    select(icustays_tble, subject_id, stay_id, intime),
+    by = c("subject_id"),
+    copy = TRUE
+  ) |>
+  # keep the last lab measurements by `storetime`
+  mutate(
+    storetime = as.POSIXct(storetime),
+    intime = as.POSIXct(intime)
+  ) |>
+  filter(storetime < intime) |>
+   # group by itemid
+  group_by(subject_id, stay_id, itemid) |>
+  # only keep the last storetime for each item before intime
+  slice_max(storetime, n = 1) |>
+  # do not need storetime and intime anymore
+  select(-storetime, -intime) |>
+  ungroup() |>
+  pivot_wider(names_from = itemid, values_from = valuenum) |>
+  #more informative column names
+  rename_at(
+    vars(as.character(d_items$itemid)),
+    ~str_to_lower(d_items$label)
+    ) |>
+  #force computation
+  # show_query() |>
+  # sort for grading purpose
+  arrange(subject_id, stay_id) |>
+  relocate(subject_id, stay_id) |>
+  # select(subject_id, stay_id, all_of(column_order)) |>
+  print(width = Inf)
+```
+
+
 
 ### Q1.7 Put things together
 
@@ -191,6 +242,10 @@ This step is similar to Q7 of HW3. Using _one_ chain of pipes `|>` to perform fo
 ```{r}
 # # TODO
 # mimic_icu_cohort <- 
+
+
+
+
 ```
 
 ### Q1.8 Preprocessing
