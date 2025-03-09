@@ -265,7 +265,7 @@ Hint: Below is a numerical summary of my tibble after preprocessing:
 # # TODO
 library(forcats)
 
-mimic_icu_cohort_1 <- mimic_icu_cohort |>
+mimic_icu_cohort <- mimic_icu_cohort |>
   select(first_careunit, last_careunit, los, admission_type, admission_location, discharge_location, insurance, language, marital_status, race, gender, dod, chloride, creatinine, sodium, potassium, glucose, hematocrit, `white blood cells`, bicarbonate, `non invasive blood pressure systolic`, `non invasive blood pressure diastolic`, `respiratory rate`, `temperature fahrenheit`, `heart rate`, `anchor_age`) |>
   mutate(
     first_careunit = fct_lump_n(first_careunit, n = 5, other_level = "Other"),
