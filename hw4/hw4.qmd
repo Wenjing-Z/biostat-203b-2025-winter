@@ -201,7 +201,6 @@ This step is similar to Q7 of HW3. Using _one_ chain of pipes `|>` to perform fo
 
 ```{r}
 # # TODO
-
 mimic_icu_cohort <- icustays_tble |>
   left_join(admissions_tble, by = c("subject_id", "hadm_id")) |>
   left_join(patients_tble, by = "subject_id") |>
@@ -225,9 +224,8 @@ Hint: Below is a numerical summary of my tibble after preprocessing:
 # # TODO
 library(forcats)
 
-# mimic_icu_cohort <- mimic_icu_cohort |>
-#   select(first_careunit, last_careunit, los, admission_type, admission_location, discharge_location, insurance, language, marital_status, race, gender, dod, chloride, creatinine, sodium, potassium, glucose, hematocrit, `white blood cells`, bicarbonate, `non invasive blood pressure systolic`, `non invasive blood pressure diastolic`, `respiratory rate`, `temperature fahrenheit`, `heart rate`, `anchor_age`) |>
-mimic_icu_cohort_1 <- mimic_icu_cohort |>
+mimic_icu_cohort_sum <- mimic_icu_cohort |>
+  select(first_careunit, last_careunit, los, admission_type, admission_location, discharge_location, insurance, language, marital_status, race, gender, dod, chloride, creatinine, sodium, potassium, glucose, hematocrit, `white blood cells`, bicarbonate, `non invasive blood pressure systolic`, `non invasive blood pressure diastolic`, `respiratory rate`, `temperature fahrenheit`, `heart rate`, `anchor_age`) |>
   mutate(
     first_careunit = fct_lump_n(first_careunit, n = 4, other_level = "Other"),
     last_careunit = fct_lump_n(last_careunit, n = 4, other_level = "Other"),
@@ -245,7 +243,7 @@ mimic_icu_cohort_1 <- mimic_icu_cohort |>
     los_long = ifelse(los >= 2, TRUE, FALSE)
   )
 
-summary_tbl <- mimic_icu_cohort_1 |>
+summary_tbl <- mimic_icu_cohort_sum |>
   tbl_summary(
     by = los_long,
     statistic = list(all_categorical() ~ "{n} ({p}%)", all_continuous() ~ "{mean} ({sd})"),
