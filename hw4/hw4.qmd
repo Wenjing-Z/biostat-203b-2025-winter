@@ -138,12 +138,14 @@ labevents_tble <- tbl(con_bq, "labevents") |>
 Connect to `chartevents` table and retrieve a subset that only contain subjects who appear in `icustays_tble` and the chart events listed in HW3. Only keep the first chart events (by `storetime`) during ICU stay and pivot chart events to become variables/columns. Write all steps in _one_ chain of pipes. Similary to HW3, if a vital has multiple measurements at the first `storetime`, average them.
 
 ```{r}
-column_order <- c("Heart Rate", "Non Invasive Blood Pressure systolic", "Non Invasive Blood Pressure diastolic", "Respiratory Rate", "Temperature Fahrenheit"   )
+column_order <- c("Heart Rate", "Non Invasive Blood Pressure systolic", 
+                  "Non Invasive Blood Pressure diastolic", "Respiratory Rate", 
+                  "Temperature Fahrenheit")
 
 chartevents_tble <- tbl(con_bq, "chartevents") |>
     select(subject_id, itemid, storetime, valuenum) |>
   inner_join(tbl(con_bq, "icustays") |>
-      select(subject_id, , stay_id, intime),
+      select(subject_id, stay_id, intime, outtime),
       by = c("subject_id"),
       copy = TRUE
   ) |>
@@ -153,14 +155,13 @@ chartevents_tble <- tbl(con_bq, "chartevents") |>
     220180,
     223761,
     220210)) |>
-  mutate(
-    storetime = as.POSIXct(storetime),
-    intime = as.POSIXct(intime)
-  ) |>
-  filter(storetime < intime) |>
+  filter(storetime > intime & storetime < outtime) |>
+  # average multiple measurements at the same time
+  group_by(subject_id, stay_id, itemid, storetime) |>
+  summarise(valuenum = round(mean(valuenum, na.rm = TRUE), 2), .groups = "drop") |>
   group_by(subject_id, stay_id, itemid) |>
   slice_max(order_by = storetime, n = 1, with_ties = FALSE) |>
-  select(-storetime, -intime) |>
+  select(-storetime) |>
   ungroup() |>
   # select(subject_id, stay_id, itemid, valuenum) |>
   left_join(tbl(con_bq, "d_items") |>
