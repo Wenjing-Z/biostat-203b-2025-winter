@@ -1,4 +1,4 @@
 *.json
 BigQuery*
 grade*
-mimic*
+mimic_icu_cohort_gtsummary.html
