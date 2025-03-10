@@ -136,63 +136,43 @@ labevents_tble <- tbl(con_bq, "labevents") |>
 ### Q1.6 `chartevents` data
 
 Connect to `chartevents` table and retrieve a subset that only contain subjects who appear in `icustays_tble` and the chart events listed in HW3. Only keep the first chart events (by `storetime`) during ICU stay and pivot chart events to become variables/columns. Write all steps in _one_ chain of pipes. Similary to HW3, if a vital has multiple measurements at the first `storetime`, average them.
+
 ```{r}
-# # TODO
-#### Connect to the chartevents table
+column_order <- c("Heart Rate", "Non Invasive Blood Pressure systolic", "Non Invasive Blood Pressure diastolic", "Respiratory Rate", "Temperature Fahrenheit"   )
+
 chartevents_tble <- tbl(con_bq, "chartevents") |>
-  mutate(subject_id = as.integer(subject_id)) |>
-  print(width = Inf)
-```
-```{r}
-d_items <- tbl(con_bq, "d_items") %>%
+    select(subject_id, itemid, storetime, valuenum) |>
+  inner_join(tbl(con_bq, "icustays") |>
+      select(subject_id, , stay_id, intime),
+      by = c("subject_id"),
+      copy = TRUE
+  ) |>
   filter(itemid %in% c(
     220045,
     220179,
     220180,
     223761,
-    220210
-    )) %>%
-  mutate(itemid = as.integer(itemid)) %>%
-  collect() |>
-  print(width = Inf)
-```
-```{r}
-chartevents_tble <- chartevents_tble |>
-  select(subject_id, itemid, storetime, valuenum) |> 
-  filter(itemid %in% d_items $ itemid) %>%
-  left_join(
-    select(icustays_tble, subject_id, stay_id, intime),
-    by = c("subject_id"),
-    copy = TRUE
-  ) |>
-  # keep the last lab measurements by `storetime`
+    220210)) |>
   mutate(
     storetime = as.POSIXct(storetime),
     intime = as.POSIXct(intime)
   ) |>
   filter(storetime < intime) |>
-   # group by itemid
   group_by(subject_id, stay_id, itemid) |>
-  # only keep the last storetime for each item before intime
-  slice_max(storetime, n = 1) |>
-  # do not need storetime and intime anymore
+  slice_max(order_by = storetime, n = 1, with_ties = FALSE) |>
   select(-storetime, -intime) |>
   ungroup() |>
-  pivot_wider(names_from = itemid, values_from = valuenum) |>
-  #more informative column names
-  rename_at(
-    vars(as.character(d_items$itemid)),
-    ~str_to_lower(d_items$label)
-    ) |>
-  #force computation
-  # show_query() |>
-  # sort for grading purpose
+  # select(subject_id, stay_id, itemid, valuenum) |>
+  left_join(tbl(con_bq, "d_items") |>
+              select(itemid, label), by = c("itemid" = "itemid")) |>
+  select(-itemid) |>
+  pivot_wider(names_from = label, values_from = valuenum) |>
   arrange(subject_id, stay_id) |>
-  relocate(subject_id, stay_id) |>
-  # select(subject_id, stay_id, all_of(column_order)) |>
+  relocate(subject_id) |>
+  select(subject_id, stay_id, all_of(column_order)) |>
+  rename_with(tolower) |>
   print(width = Inf)
 ```
-
 
 
 ### Q1.7 Put things together
