@@ -18,7 +18,9 @@ format:
 Using the ICU cohort `mimiciv_icu_cohort.rds` you built in Homework 4, develop at least three machine learning approaches (logistic regression with enet regularization, random forest, boosting, SVM, MLP, etc) plus a model stacking approach for predicting whether a patient's ICU stay will be longer than 2 days. You should use the `los_long` variable as the outcome. You algorithms can use patient demographic information (gender, age at ICU `intime`, marital status, race), ICU admission information (first care unit), the last lab measurements before the ICU stay, and first vital measurements during ICU stay as features. You are welcome to use any feature engineering techniques you think are appropriate; but make sure to not use features that are not available at an ICU stay's `intime`. For instance, `last_careunit` cannot be used in your algorithms. 
 
 1. Data preprocessing and feature engineering.
-Loading necessary libraries
+
+###Loading necessary libraries
+
 ```{r}
 library(dplyr)
 library(tidymodels)
@@ -37,13 +39,18 @@ icu_data
 Data cleaning
 
 ```{r}
-mimic_icu_cohort <- mimic_icu_cohort %>%
+icu_clean <- icu_data %>%
+  select(-subject_id, -hadm_id, -stay_id, -last_careunit, -intime, -outtime, 
+         -dischtime,-admittime, -admit_provider_id, -deathtime, -edregtime, 
+         -edouttime, -dod) %>%
+  select(-c(discharge_location, hospital_expire_flag, los)) %>%
+  select(-c(anchor_year, anchor_year_group)) %>% # Remove future or unnecessary info
   mutate(
+    los_long = factor(los_long, levels = c(FALSE, TRUE), labels = c("Yes", "No")),
     gender = factor(gender),
     marital_status = factor(marital_status),
     race = factor(race),
-    first_careunit = factor(first_careunit),
-    los_long = factor (los_long)
+    first_careunit = factor(first_careunit)
   ) %>%
   drop_na()
 ```
@@ -51,23 +58,21 @@ mimic_icu_cohort <- mimic_icu_cohort %>%
 2. Partition data into 50% training set and 50% test set. Stratify partitioning according to `los_long`. For grading purpose, sort the data by `subject_id`, `hadm_id`, and `stay_id` and use the seed `203` for the initial data split. Below is the sample code.
 ```{r}
 #Train-Test Split
- #| eval: false 
 set.seed(203)
 
-# sort
-mimic_icu_cohort <- mimic_icu_cohort |>
-  arrange(subject_id, hadm_id, stay_id)
-
 data_split <- initial_split(
-  mimic_icu_cohort, 
-  # stratify by los_long
-  strata = "los_long", 
-  prop = 0.5
+  icu_clean, 
+  # stratify by los_long                          
+  prop = 0.5, 
+  strata = los_long
   )
 
-icu_train <- training(data_split)
-icu_test <- testing(data_split)
+train_data <- training(data_split)
+test_data  <- testing(data_split)
 ```
+
+
+
 ```{r}
 #recipe
 icu_recipe <- recipe(los_long ~ ., data = icu_train) %>%
