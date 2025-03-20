@@ -1,7 +1,7 @@
 ---
 title: "Biostat 203B Homework 5"
 subtitle: Due Mar 20 @ 11:59PM
-author: "Your Name and UID"
+author: "Wenjing Zhou and 806542441"
 format:
   html:
     theme: cosmo
@@ -18,24 +18,149 @@ format:
 Using the ICU cohort `mimiciv_icu_cohort.rds` you built in Homework 4, develop at least three machine learning approaches (logistic regression with enet regularization, random forest, boosting, SVM, MLP, etc) plus a model stacking approach for predicting whether a patient's ICU stay will be longer than 2 days. You should use the `los_long` variable as the outcome. You algorithms can use patient demographic information (gender, age at ICU `intime`, marital status, race), ICU admission information (first care unit), the last lab measurements before the ICU stay, and first vital measurements during ICU stay as features. You are welcome to use any feature engineering techniques you think are appropriate; but make sure to not use features that are not available at an ICU stay's `intime`. For instance, `last_careunit` cannot be used in your algorithms. 
 
 1. Data preprocessing and feature engineering.
+Loading necessary libraries
+```{r}
+library(dplyr)
+library(tidymodels)
+library(vip)  # For variable importance
+library(xgboost)
+library(doParallel) # For parallel processing
+```
+
+```{r}
+icu_data <- readRDS("mimic_icu_cohort.rds") %>%
+    mutate(los_long = los > 2)
+icu_data
+```
+
+
+Data cleaning
+
+```{r}
+mimic_icu_cohort <- mimic_icu_cohort %>%
+  mutate(
+    gender = factor(gender),
+    marital_status = factor(marital_status),
+    race = factor(race),
+    first_careunit = factor(first_careunit),
+    los_long = factor (los_long)
+  ) %>%
+  drop_na()
+```
 
 2. Partition data into 50% training set and 50% test set. Stratify partitioning according to `los_long`. For grading purpose, sort the data by `subject_id`, `hadm_id`, and `stay_id` and use the seed `203` for the initial data split. Below is the sample code.
 ```{r}
-#| eval: false
+#Train-Test Split
+ #| eval: false 
 set.seed(203)
 
 # sort
-mimiciv_icu_cohort <- mimiciv_icu_cohort |>
+mimic_icu_cohort <- mimic_icu_cohort |>
   arrange(subject_id, hadm_id, stay_id)
 
 data_split <- initial_split(
-  mimiciv_icu_cohort, 
+  mimic_icu_cohort, 
   # stratify by los_long
   strata = "los_long", 
   prop = 0.5
   )
+
+icu_train <- training(data_split)
+icu_test <- testing(data_split)
+```
+```{r}
+#recipe
+icu_recipe <- recipe(los_long ~ ., data = icu_train) %>%
+  #update_role(subject_id , new_role = "ID") %>%
+  step_dummy(all_nominsl_predictors()) %>%
+  step_normalize(all_numeric_predictors()) %>%
+  step_zv(all_predictors()) 
 ```
 
 3. Train and tune the models using the training set.
+
+Model 1 : Logistic regression + Elastic Net
+
+```{r}
+log_mod <- logistic_reg(
+  penalty = tune(), 
+  mixture = tune()
+) %>%
+  set_engine("glmnet") 
+
+log_mod
+```
+
+```{r}
+log_wf <- workflow() %>%
+  add_model(log_mod) %>%
+  add_recipe(icu_recipe)
+
+log_wf
+```
+```{r}
+#cross-validation 
+set.seed(123)
+icu_folds <- vfold_cv(icu_train, v = 5, strata = los_long)
+
+log_grid <- grid_regular(
+  penalty(range = c(-4, 1)),
+  mixture(),
+  levels = 5
+)
+
+```
+```{r}
+log_res <- tune_grid(
+  log_wf,
+  resamples = icu_folds,
+  grid = log_grid,
+  metrics = metric_set(roc_auc)
+)
+```
+
+Model 2 : Random Forest
+
+```{r}
+rf_mod <- rand_forest(
+  mtry = tune(),
+  trees = 500,
+  min_n = tune() 
+) %>%
+  set_engine("ranger") %>%
+  set_mode("classification")
+
+rf_wf <- workflow() %>%
+  add_model(rf_mod) %>%
+  add_recipe(icu_recipe)
+
+rf_res <- tune_grid(
+  rf_wf,
+  resamples = icu_folds,
+  grid = 10,
+  metrics = metric_set(roc_auc)
+)
+```
+Model 3 : XGBoost
+```{r}
+boost_mod <- boost_tree(
+  trees = 1000,
+  mtry = tune(),
+  learn_rate = tune(),
+  tree_depth = tune()
+) %>%
+  set_engine("xgboost") %>%
+  set_mode("classification")
+
+boost_wf <- workflow() %>%
+  add_model(boost_mod) %>%
+  add_recipe(icu_recipe)
+boost_res <- turn_grid(
+  boost_wf,
+  resamples = icu_folds,
+  grid = 10,
+  metrics = metric_set(roc_auc)
+)
+```
 
 4. Compare model classification performance on the test set. Report both the area under ROC curve and accuracy for each machine learning algorithm and the model stacking. Interpret the results. What are the most important features in predicting long ICU stays? How do the models compare in terms of performance and interpretability?
