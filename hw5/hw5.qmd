@@ -110,7 +110,7 @@ log_reg_workflow <- workflow() %>%
 set.seed(123)
 
 log_reg_grid_fine <- grid_regular(
-  penalty(range = c(-6, -1)),  
+  penalty(range =10^c(-6, -1)),  
   mixture(range = c(0, 1)),  
   levels = 5
 )
@@ -150,11 +150,10 @@ final_fit_fine %>% collect_metrics()
 
 ```
 #📌 6. Random Forest
-5:58-6:44
+
 
 ```{r}
-library(tidymodels)
-set.seed(123)
+set.seed(203)
 
 # 随机森林模型定义
 rf_spec <- rand_forest(
@@ -162,8 +161,8 @@ rf_spec <- rand_forest(
   min_n = tune(),
   trees = 500
 ) %>%
-  set_mode("classification", importance = "impurity") %>%
-  set_engine("ranger")
+  set_mode("classification") %>%
+  set_engine("ranger", importance = "impurity")
 
 # workflow设置
 rf_workflow <- workflow() %>%
@@ -180,7 +179,7 @@ rf_grid <- grid_random(
 # 执行调参
 rf_res <- tune_grid(
   rf_workflow,
-  resamples = vfold_cv(train_data, v = 5, strata = los_long),
+  resamples = folds,
   grid = rf_grid,
   metrics = metric_set(roc_auc)
 )
@@ -188,20 +187,6 @@ rf_res <- tune_grid(
 ```{r}
 rf_res %>% show_best(metric ="roc_auc")
 
-```
-```{r}
-# 再次运行特征重要性分析 (vip)
-
-# 拟合模型到完整训练数据
-final_rf_fit <- rf_workflow %>%
-  last_fit(data_split)
-
-# 再次运行特征重要性分析 (vip)
-library(vip)
-
-final_rf_fit %>%
-  extract_fit_parsnip() %>%
-  vip(num_features = 15)
 ```
 
 ```{r}
@@ -219,6 +204,20 @@ final_rf_fit <- final_rf_workflow %>% last_fit(data_split)
 final_rf_fit %>% collect_metrics()
 
 ```
+```{r}
+# 再次运行特征重要性分析 (vip)
+
+# 拟合模型到完整训练数据
+final_rf_fit <- final_rf_workflow %>%
+  last_fit(data_split)
+
+# 再次运行特征重要性分析 (vip)
+
+final_rf_fit %>%
+  extract_fit_parsnip() %>%
+  vip(num_features = 15)
+```
+
 
 
 #📌 7. XGBoost
@@ -318,7 +317,6 @@ final_xgb_fit %>% collect_metrics()
 
 
 ```{r}
-library(vip)
 
 final_xgb_fit %>%
   extract_fit_parsnip() %>%
@@ -380,10 +378,10 @@ library(stacks)
 set.seed(123)
 
 
-folds <- vfold_cv(train_data, v = 5, strata = los_long)
+
 
 # 定义基础模型
-log_reg_res <- final_rf_workflow %>% 
+log_reg_res <- final_log_workflow %>% 
   fit_resamples(
     resamples = folds, 
     control = control_stack_resamples()
@@ -453,8 +451,6 @@ results
 
 4. 模型特征重要性分析
 ```{r}
-library(vip)
-
 # 随机森林特征重要性
 final_rf_fit %>%
   extract_fit_parsnip() %>%
