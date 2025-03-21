@@ -48,7 +48,10 @@ icu_clean <- icu_data %>%
   select(-c(discharge_location, hospital_expire_flag, los)) %>%
   select(-c(anchor_year, anchor_year_group)) %>% # Remove future or unnecessary info
   mutate(
-    los_long = factor(los_long, levels = c(FALSE, TRUE), labels = c("Yes", "No")),
+    los_long = factor(los_long, 
+                      levels = c(FALSE, TRUE), 
+                      labels = c("Yes", "No")
+                      ),
     gender = factor(gender),
     marital_status = factor(marital_status),
     race = factor(race),
@@ -409,9 +412,17 @@ accuracy(stack_preds, truth = los_long, .pred_class)
 Model Performance Evaluation (ROC & Accuracy)
 ```{r}
 # Extract Model Performance
-log_metrics <- final_log_fit %>% collect_metrics() %>% select(.metric, .estimate)
-rf_metrics  <- final_rf_fit  %>% collect_metrics() %>% select(.metric, .estimate)
-xgb_metrics <- final_xgb_fit %>% collect_metrics() %>% select(.metric, .estimate)
+log_metrics <- final_log_fit %>% 
+  collect_metrics() %>% 
+  select(.metric, .estimate)
+
+rf_metrics  <- final_rf_fit  %>% 
+  collect_metrics() %>% 
+  select(.metric, .estimate)
+
+xgb_metrics <- final_xgb_fit %>% 
+  collect_metrics() %>% 
+  select(.metric, .estimate)
 
 # Stacking Model Performance
 stack_roc <- roc_auc(stack_preds, truth = los_long, .pred_Yes)
