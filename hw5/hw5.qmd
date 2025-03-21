@@ -473,3 +473,15 @@ legend("bottomright",
        col=c("blue","green","red","purple"), lwd=2)
 
 ```
+
+| Mode                | Roc_Auc     | Accuracy |
+|---------------------|-------------|----------|
+| Logistic Regression | $0.5958$    | 0.5576   |
+| Random Forest       | $0.6489$    | 0.6062   |
+| XGBoost             | $0.6488$    | 0.6099   |
+| Stacking            | $0.6538$    | 0.6107   |
+
+
+The stacking model slightly outperforms the individual models in terms of ROC-AUC (0.6538), followed closely by XGBoost (0.6488) and Random Forest (0.6489). Logistic regression has significantly lower performance (0.5958), indicating its limited predictive capability for this dataset.
+
+Similar trends emerge in accuracy, with stacking achieving the highest accuracy (0.6107). However, accuracy differences between stacking, XGBoost, and Random Forest are relatively small, indicating that the stacking method's improvement, although statistically measurable, is practically modest.
