@@ -76,6 +76,7 @@ test_data  <- testing(data_split)
 set.seed(203)
 
 folds <- vfold_cv(train_data, v = 5, strata = los_long)
+
 icu_folds <- folds
 ```
 
@@ -148,7 +149,350 @@ final_fit_fine <- final_workflow_fine %>%
 final_fit_fine %>% collect_metrics()
 
 ```
+#📌 6. Random Forest
+5:58-6:44
+
+```{r}
+library(tidymodels)
+set.seed(123)
+
+# 随机森林模型定义
+rf_spec <- rand_forest(
+  mtry = tune(),
+  min_n = tune(),
+  trees = 500
+) %>%
+  set_mode("classification", importance = "impurity") %>%
+  set_engine("ranger")
+
+# workflow设置
+rf_workflow <- workflow() %>%
+  add_model(rf_spec) %>%
+  add_recipe(icu_recipe)
+
+# 随机网格参数
+rf_grid <- grid_random(
+  mtry(range = c(2, 10)),
+  min_n(range = c(5, 20)),
+  size = 10
+)
+
+# 执行调参
+rf_res <- tune_grid(
+  rf_workflow,
+  resamples = vfold_cv(train_data, v = 5, strata = los_long),
+  grid = rf_grid,
+  metrics = metric_set(roc_auc)
+)
+```
+```{r}
+rf_res %>% show_best(metric ="roc_auc")
+
+```
+```{r}
+# 再次运行特征重要性分析 (vip)
+
+# 拟合模型到完整训练数据
+final_rf_fit <- rf_workflow %>%
+  last_fit(data_split)
+
+# 再次运行特征重要性分析 (vip)
+library(vip)
+
+final_rf_fit %>%
+  extract_fit_parsnip() %>%
+  vip(num_features = 15)
+```
+
+```{r}
+# 选取最佳参数
+best_rf <- rf_res %>% select_best(metric = "roc_auc")
+best_rf
+
+# 最终workflow
+final_rf_workflow <- rf_workflow %>% finalize_workflow(best_rf)
+
+# 最终拟合测试
+final_rf_fit <- final_rf_workflow %>% last_fit(data_split)
+
+# 测试集表现评估
+final_rf_fit %>% collect_metrics()
+
+```
 
 
+#📌 7. XGBoost
+
+```{r}
+xgb_spec <- boost_tree(
+  trees = 500,
+  tree_depth = tune(),
+  learn_rate = tune(),
+  min_n = tune(),
+  #loss_reduction = tune()
+) %>%
+  set_engine("xgboost") %>%
+  set_mode("classification")
+```
+
+
+
+```{r}
+xgb_workflow <- workflow() %>%
+  add_recipe(icu_recipe) %>%
+  add_model(xgb_spec)
+
+```
+
+```{r}
+set.seed(123)
+
+xgb_grid <- grid_random(
+  learn_rate(range = c(-3, -1)),   # 学习率 (0.001 ~ 0.1)
+  tree_depth(range = c(3, 8)),     # 树的深度
+  min_n(range = c(5, 20)),         # 叶节点最小样本数
+  size = 10                        # 快速尝试10组参数
+)
+
+```
+
+
+Step 4: 运行交叉验证调参（启用并行加速）
+强烈建议开启并行计算提高速度：
+
+```{r}
+library(doFuture)
+library(doParallel)
+
+cores <- parallel::detectCores() - 1
+registerDoFuture()
+plan(multisession, workers = cores)
+
+set.seed(123)
+xgb_res <- tune_grid(
+  xgb_workflow,
+  resamples = vfold_cv(train_data, v = 5, strata = los_long),
+  grid = xgb_grid,
+  metrics = metric_set(roc_auc)
+)
+
+plan(sequential)
+
+```
+
+
+```{r}
+xgb_res %>% show_best(metric ="roc_auc")
+```
+
+
+📌 Step 5: 查看调参结果，选择最佳模型
+
+```{r}
+# 查看调参结果（最佳 ROC_AUC）
+xgb_res %>% show_best( metric = "roc_auc")
+
+# 选出最佳参数
+best_xgb <- xgb_res %>% select_best( metric = "roc_auc")
+best_xgb
+```
+
+📌 Step 6: 使用最佳参数训练最终模型并评估
+```{r}
+# 最终workflow确定
+final_xgb_workflow <- xgb_workflow %>% finalize_workflow(best_xgb)
+
+# 训练最终模型并在测试集评估
+final_xgb_fit <- final_xgb_workflow %>% last_fit(data_split)
+
+# 测试集表现评估
+final_xgb_fit %>% collect_metrics()
+
+```
+
+
+📌 Step 7: 模型特征重要性分析（推荐做）
+
+
+
+
+
+```{r}
+library(vip)
+
+final_xgb_fit %>%
+  extract_fit_parsnip() %>%
+  vip(num_features = 15)
+
+```
 
 4. Compare model classification performance on the test set. Report both the area under ROC curve and accuracy for each machine learning algorithm and the model stacking. Interpret the results. What are the most important features in predicting long ICU stays? How do the models compare in terms of performance and interpretability?
+
+
+📌 9. 测试集评估
+Step 1. 模型表现评估与对比（完整代码）
+
+```{r}
+# 提取每个模型在测试集上的预测结果
+lr_preds <- collect_predictions(final_fit_fine)
+rf_preds <- collect_predictions(final_rf_fit)
+xgb_preds <- collect_predictions(final_xgb_fit)
+
+# 计算ROC AUC 和 Accuracy
+model_metrics <- bind_rows(
+  lr_preds %>% mutate(model = "Logistic Regression"),
+  rf_preds %>% mutate(model = "Random Forest"),
+  xgb_preds %>% mutate(model = "XGBoost")
+) %>%
+  group_by(model) %>%
+  summarise(
+    accuracy = accuracy_vec(truth = los_long, estimate = .pred_class),
+    roc_auc = roc_auc_vec(truth = los_long, estimate = .pred_Yes)
+  )
+
+# 展示结果
+model_metrics
+```
+
+```{r}
+# (1) 明确final workflow参数
+final_rf_workflow <- rf_workflow %>% finalize_workflow(best_rf)
+final_xgb_workflow <- xgb_workflow %>% finalize_workflow(best_xgb)
+final_log_workflow <- log_reg_workflow %>% finalize_workflow(best_fine)
+
+# (2) 运行最终模型（无报错）
+final_rf_fit <- final_rf_workflow %>% last_fit(data_split)
+final_xgb_fit <- final_xgb_workflow %>% last_fit(data_split)
+final_log_fit <- final_log_workflow %>% last_fit(data_split)
+
+# (3) 正常评估结果（已无报错）
+final_rf_fit %>% collect_metrics()
+final_xgb_fit %>% collect_metrics()
+final_log_fit %>% collect_metrics()
+
+```
+
+####2. 模型Stacking（堆叠）代码（强烈推荐）
+
+```{r}
+library(stacks)
+
+set.seed(123)
+
+
+folds <- vfold_cv(train_data, v = 5, strata = los_long)
+
+# 定义基础模型
+log_reg_res <- final_rf_workflow %>% 
+  fit_resamples(
+    resamples = folds, 
+    control = control_stack_resamples()
+  )
+
+rf_res <- final_rf_workflow %>% 
+  fit_resamples(
+    resamples = folds,  
+    control = control_stack_resamples()
+  )
+
+xgb_res <- final_xgb_workflow %>% 
+  fit_resamples(
+    resamples = folds, 
+    control = control_stack_resamples()
+  )
+```
+
+
+```{r}
+# 创建stacking模型
+model_stack <- stacks() %>%
+  add_candidates(log_reg_res) %>%
+  add_candidates(rf_res) %>%
+  add_candidates(xgb_res) %>%
+  blend_predictions() %>%
+  fit_members()
+
+stack_preds <- predict(model_stack, test_data, type = "prob") %>%
+  bind_cols(test_data) %>%
+  mutate(.pred_class = factor(ifelse(.pred_Yes > 0.5, "Yes", "No"),
+                              levels = c("Yes", "No")))
+
+roc_auc(stack_preds, truth = los_long, .pred_Yes)
+accuracy(stack_preds, truth = los_long, .pred_class)
+
+```
+
+🚩 3. 模型评估 (ROC & Accuracy)
+```{r}
+# 快速提取每个模型表现
+log_metrics <- final_log_fit %>% collect_metrics() %>% select(.metric, .estimate)
+rf_metrics  <- final_rf_fit  %>% collect_metrics() %>% select(.metric, .estimate)
+xgb_metrics <- final_xgb_fit %>% collect_metrics() %>% select(.metric, .estimate)
+
+# Stacking模型的表现（假设已按上面步骤完成）
+stack_roc <- roc_auc(stack_preds, truth = los_long, .pred_Yes)
+stack_acc <- accuracy(stack_preds, truth = los_long, .pred_class)
+
+# 综合显示
+results <- tibble(
+  Model = c("Logistic Regression", "Random Forest", "XGBoost", "Stacking"),
+  ROC_AUC = c(log_metrics$.estimate[log_metrics$.metric=="roc_auc"],
+              rf_metrics$.estimate[rf_metrics$.metric=="roc_auc"],
+              xgb_metrics$.estimate[xgb_metrics$.metric=="roc_auc"],
+              stack_roc$.estimate),
+  Accuracy = c(log_metrics$.estimate[log_metrics$.metric=="accuracy"],
+               rf_metrics$.estimate[rf_metrics$.metric=="accuracy"],
+               xgb_metrics$.estimate[xgb_metrics$.metric=="accuracy"],
+               stack_acc$.estimate)
+)
+
+results
+
+```
+
+
+4. 模型特征重要性分析
+```{r}
+library(vip)
+
+# 随机森林特征重要性
+final_rf_fit %>%
+  extract_fit_parsnip() %>%
+  vip(num_features = 15) +
+  ggtitle("Random Forest Feature Importance")
+
+# XGBoost特征重要性
+final_xgb_fit %>%
+  extract_fit_parsnip() %>%
+  vip(num_features = 15) +
+  ggtitle("XGBoost Feature Importance")
+
+```
+
+
+5. 模型性能对比图 (ROC 曲线绘制)
+```{r}
+library(pROC)
+
+# 获取预测概率
+log_preds <- final_log_fit %>% collect_predictions()
+rf_preds  <- final_rf_fit %>% collect_predictions()
+xgb_preds <- final_xgb_fit %>% collect_predictions()
+
+# ROC曲线
+log_roc <- roc(log_preds$los_long, log_preds$.pred_Yes)
+rf_roc  <- roc(rf_preds$los_long, rf_preds$.pred_Yes)
+xgb_roc <- roc(xgb_preds$los_long, xgb_preds$.pred_Yes)
+stack_roc_curve <- roc(stack_preds$los_long, stack_preds$.pred_Yes)
+
+# 绘图
+plot(log_roc, col = "blue", legacy.axes=TRUE, main="ROC Curve Comparison")
+plot(rf_roc, col = "green", add = TRUE)
+plot(xgb_roc, col = "red", add = TRUE)
+plot(stack_roc_curve, col = "purple", add = TRUE)
+
+legend("bottomright",
+       legend=c("Logistic Regression","Random Forest","XGBoost","Stacking"),
+       col=c("blue","green","red","purple"), lwd=2)
+
+```
