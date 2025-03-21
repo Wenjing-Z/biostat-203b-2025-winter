@@ -8,3 +8,5 @@ Homework
 [Tag hw3](https://github.com/Wenjing-Z/biostat-203b-2025-winter/releases/tag/hw3)
 
 [Tag hw4](https://github.com/Wenjing-Z/biostat-203b-2025-winter/releases/tag/hw4)
+
+[Tag hw5](https://github.com/Wenjing-Z/biostat-203b-2025-winter/releases/tag/hw5)
